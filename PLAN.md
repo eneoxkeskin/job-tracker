@@ -347,7 +347,14 @@ AUTH_GITHUB_SECRET=""
     Older tutorials that use `url`/`directUrl` in the schema won't work.
 - **Migrations must use the direct URL.** Through the pooler (transaction mode) advisory locks and session state fail, and the errors are confusing or migrations hang.
 - **`prisma migrate dev` needs a shadow database.** Prisma creates a temporary one on the same server, and Neon's owner role normally allows this. If it fails, create a `shadow` branch and set `shadowDatabaseUrl` in the config.
-- **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. `prisma.config.ts` is evaluated during `generate`. If it requires `DIRECT_URL` and Vercel doesn't have it, the build fails. In M2 we check this and either make the config tolerate a missing variable during generate or add `DIRECT_URL` on Vercel.
+- **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. **Verified in M2:** Prisma's `env("DIRECT_URL")` helper throws when the variable is missing (`PrismaConfigEnvError`), which would break the Vercel build. `prisma.config.ts` therefore sets `datasource` only when `DIRECT_URL` exists. `generate` works without it, and `migrate` still fails with a clear message.
+
+### Decisions made during M2
+
+- **`overrides: { effect: "3.22.5" }`.** `@prisma/config@7.10.1` pins `effect@3.20.0`, which has a high-severity ReDoS advisory (GHSA-7589-6fvf-x4pw). It's only reachable through our own config file, but a clean audit is cheap: we override to the patched version in the same 3.x line. `npm audit fix --force` would downgrade to Prisma 6, which is wrong. Remove the override once Prisma ships with a patched version.
+- **`allowScripts` for `prisma` and `@prisma/engines`.** npm 11 blocks install scripts unless they are approved. Prisma's scripts install the engine binaries the CLI needs. They're approved per exact version, so an upgrade has to be re-approved on purpose.
+- **No `engines` field in package.json.** Local is Node 26 and Vercel is 24, so `"24.x"` warned on every install. The Vercel Node version is set in Project Settings instead (M3b).
+- **`sslmode=verify-full` in the connection strings.** `pg` warns that in v9 `require` will drop to libpq semantics (no certificate verification). Writing `verify-full` keeps today's stronger behavior explicitly.
 - **Dev hot reload creates a new PrismaClient on every reload** and exhausts connections. Use a `globalThis` singleton in `lib/db.ts`.
 - **Neon scale-to-zero.** The first request after the compute has been idle has a cold start of a few hundred ms. This is expected, and the README mentions it.
 - **`@auth/prisma-adapter` types vs the new Prisma generator.** The adapter types come from `@prisma/client`, while our client is generated elsewhere, so a type mismatch is possible. If it happens, we use a narrowly scoped cast with a comment explaining it.
