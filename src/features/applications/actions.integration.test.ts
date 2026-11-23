@@ -307,4 +307,27 @@ describe("moveApplication", () => {
 
     expect(await columnIds(alice, "INTERVIEW")).toEqual(["a", "i1"]);
   });
+
+  it("the 'Move to' form is a no-op when the chosen stage is the current one", async () => {
+    await seed(alice, "i0", "INTERVIEW", 0);
+    const i1 = await seed(alice, "i1", "INTERVIEW", 1);
+    const before = await db.application.findMany({
+      where: { userId: alice },
+      orderBy: { id: "asc" },
+    });
+    const fd = new FormData();
+    fd.set("id", i1.id);
+    fd.set("toStage", "INTERVIEW");
+    fd.set("currentStage", "INTERVIEW");
+
+    await actions.moveApplicationFromForm(fd);
+
+    // Not even moved to the top of its own column.
+    expect(
+      await db.application.findMany({
+        where: { userId: alice },
+        orderBy: { id: "asc" },
+      }),
+    ).toEqual(before);
+  });
 });

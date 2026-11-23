@@ -30,3 +30,28 @@ export function isStage(value: unknown): value is StageId {
     typeof value === "string" && (STAGES as readonly string[]).includes(value)
   );
 }
+
+export type MoveOption = { value: StageId; label: string; isCurrent: boolean };
+
+/**
+ * Options for the "Move to" menu: every stage in board order, the card's current stage
+ * marked "(current)" so the menu opens on where the card already is.
+ */
+export function moveOptions(current: StageId): MoveOption[] {
+  return STAGES.map((stage) => ({
+    value: stage,
+    label:
+      stage === current
+        ? `${STAGE_LABELS[stage]} (current)`
+        : STAGE_LABELS[stage],
+    isCurrent: stage === current,
+  }));
+}
+
+/** A move is only meaningful to a valid stage other than the current one. */
+export function canMoveTo(
+  target: unknown,
+  current: StageId,
+): target is StageId {
+  return isStage(target) && target !== current;
+}

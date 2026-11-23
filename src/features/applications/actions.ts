@@ -200,6 +200,11 @@ export async function moveApplication(input: unknown): Promise<MoveResult> {
 export async function moveApplicationFromForm(
   formData: FormData,
 ): Promise<void> {
+  // "Move to the stage it's already in" is a no-op. With JS the button is disabled in that
+  // case; this covers no-JS submits. `currentStage` comes from the client, but trusting it is
+  // harmless: the worst a forged value can do is skip moving the user's own card.
+  if (formData.get("toStage") === formData.get("currentStage")) return;
+
   const result = await moveApplication({
     id: formData.get("id"),
     toStage: formData.get("toStage"),
