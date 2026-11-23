@@ -8,5 +8,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // DB-backed tests run separately: npm run test:integration
+    exclude: ["src/**/*.integration.test.ts"],
   },
 });

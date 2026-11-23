@@ -349,6 +349,18 @@ AUTH_GITHUB_SECRET=""
 - **`prisma migrate dev` needs a shadow database.** Prisma creates a temporary one on the same server, and Neon's owner role normally allows this. If it fails, create a `shadow` branch and set `shadowDatabaseUrl` in the config.
 - **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. **Verified in M2:** Prisma's `env("DIRECT_URL")` helper throws when the variable is missing (`PrismaConfigEnvError`), which would break the Vercel build. `prisma.config.ts` therefore sets `datasource` only when `DIRECT_URL` exists. `generate` works without it, and `migrate` still fails with a clear message.
 
+### Decisions made during M6
+
+- **Authorization integration tests** were pulled forward from "if time permits" (`npm run test:integration`, `actions.integration.test.ts`).
+  - They call the real Server Actions against the Neon `dev` branch. Only the session and Next's `redirect`/`revalidatePath` are mocked.
+  - They prove that another user can't read, update, move or delete a record, that an injected `userId` is ignored, and that malformed ids are rejected.
+  - **Mutation-checked:** removing `userId` from the delete query makes the cross-user test fail.
+  - They're kept out of `npm test` because they need a database. CI can run them against a throwaway Neon branch later.
+- **Bound action arguments are treated as untrusted input.** `updateApplication.bind(null, id)` sends `id` to the browser unencrypted, so every action validates it with zod and scopes it by `userId`.
+- **Delete is idempotent.** Deleting a foreign or already-deleted id deletes 0 rows and still redirects to the board, so it doesn't reveal anything and doesn't fail on a double submit.
+- **Native `<dialog>` with `showModal()` for the delete confirmation.** The browser handles focus trapping, Escape, an inert background and returning focus. Cancel gets the initial focus, not the destructive button.
+- **"Move to" is a plain form posting to a Server Action.** It works with keyboard, touch, screen readers and without JS, and moves the card to the top of the chosen stage. Drag and drop (M7) reuses the same `moveApplication`.
+
 ### Decisions made during M5
 
 - **Queries resolve the user themselves** (`listApplications()` takes no `userId` and calls `requireUserId()`). A caller can't pass the wrong id. React `cache` dedupes the session lookup per request.

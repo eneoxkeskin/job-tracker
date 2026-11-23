@@ -3,6 +3,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 
+import { applicationIdSchema } from "./schema";
+
 // Reads resolve the user themselves instead of taking a userId parameter, so a caller can't
 // accidentally (or maliciously) read another user's data.
 
@@ -34,3 +36,17 @@ export async function listApplications() {
 export type ApplicationListItem = Awaited<
   ReturnType<typeof listApplications>
 >[number];
+
+/**
+ * One application of the signed-in user, or null if it doesn't exist *or belongs to someone
+ * else*. Callers turn null into a 404, so a foreign id is indistinguishable from a missing one.
+ */
+export async function getApplication(id: string) {
+  const userId = await requireUserId();
+  const parsedId = applicationIdSchema.safeParse(id);
+  if (!parsedId.success) return null;
+  return db.application.findFirst({
+    where: { id: parsedId.data, userId },
+    select: applicationSelect,
+  });
+}

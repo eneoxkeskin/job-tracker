@@ -1,11 +1,16 @@
+import Link from "next/link";
+
 import { focusRing } from "@/components/styles";
 
 import { formatAppliedDate, formatSalaryRange } from "../format";
 import type { ApplicationListItem } from "../queries";
+import { MoveToForm } from "./move-to-form";
 
 type ApplicationCardProps = {
   application: ApplicationListItem;
 };
+
+const linkStyle = `inline-flex min-h-11 items-center rounded text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 ${focusRing}`;
 
 /** Presentational card; no hooks, so it can be rendered by server and client components. */
 export function ApplicationCard({ application }: ApplicationCardProps) {
@@ -33,20 +38,33 @@ export function ApplicationCard({ application }: ApplicationCardProps) {
           {application.notes}
         </p>
       )}
-      {application.postingUrl && (
-        <a
-          href={application.postingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`inline-block rounded text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 ${focusRing}`}
+      <div className="flex flex-wrap items-center gap-x-4">
+        <Link
+          href={`/applications/${application.id}/edit`}
+          className={linkStyle}
         >
-          Job posting
-          <span className="sr-only">
-            {" "}
-            for {application.company} (opens in a new tab)
-          </span>
-        </a>
-      )}
+          Edit<span className="sr-only"> {application.company}</span>
+        </Link>
+        {application.postingUrl && (
+          <a
+            href={application.postingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkStyle}
+          >
+            Job posting
+            <span className="sr-only">
+              {" "}
+              for {application.company} (opens in a new tab)
+            </span>
+          </a>
+        )}
+      </div>
+      <MoveToForm
+        id={application.id}
+        company={application.company}
+        stage={application.stage}
+      />
     </article>
   );
 }
