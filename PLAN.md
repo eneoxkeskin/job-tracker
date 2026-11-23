@@ -349,6 +349,15 @@ AUTH_GITHUB_SECRET=""
 - **`prisma migrate dev` needs a shadow database.** Prisma creates a temporary one on the same server, and Neon's owner role normally allows this. If it fails, create a `shadow` branch and set `shadowDatabaseUrl` in the config.
 - **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. **Verified in M2:** Prisma's `env("DIRECT_URL")` helper throws when the variable is missing (`PrismaConfigEnvError`), which would break the Vercel build. `prisma.config.ts` therefore sets `datasource` only when `DIRECT_URL` exists. `generate` works without it, and `migrate` still fails with a clear message.
 
+### Decisions made during M5
+
+- **Queries resolve the user themselves** (`listApplications()` takes no `userId` and calls `requireUserId()`). A caller can't pass the wrong id. React `cache` dedupes the session lookup per request.
+- **Optional fields become explicit `null` before they're written** (`toApplicationData`). On an update Prisma treats `undefined` as "leave unchanged", so clearing a field would otherwise silently keep the old value.
+- **Failed submits echo the typed values back.** React 19 resets a form after its action finishes, and the inputs re-render from the returned values as `defaultValue`. Focus moves to the first invalid field.
+- **Forms work without JS.** Verified over HTTP with a temporary dev session: an invalid post re-renders with errors and the typed values, a valid post returns 303 to `/board`, and an injected `userId` field is ignored.
+- **The signed-out `/board` response is 200 with an in-stream redirect, not a 307.** `loading.tsx` makes Next start streaming before the page runs `requireUserId()`. No data is rendered, because the session check runs before the query. Pages without `loading.tsx` return a real 307.
+- **Next 16.4 `error.tsx` receives `retry()`**, which re-fetches the segment. Older versions used `reset()`. Checked against the bundled docs.
+
 ### Decisions made during M3
 
 - **The build fails fast without `DATABASE_URL`.** This was verified: `src/lib/db.ts` throws at import, and Next imports route modules while collecting page data. This is intentional, because a misconfigured environment can't produce a deployment that looks healthy but is broken. For CI builds a dummy URL is enough, since the build opens no connection.
