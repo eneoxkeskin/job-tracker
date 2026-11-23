@@ -15,7 +15,7 @@ Job Application Tracker: GitHub sign-in, applications on a 4-stage Kanban board
 - `npm run dev`: dev server at http://localhost:3000
 - `npm run check`: lint + typecheck + unit tests (must pass before every commit)
 - `npm run build`: production build (must pass before every commit)
-- `npm run test` / `npm run test:watch`: Vitest unit tests (no DB)
+- `npm run test` / `npm run test:watch`: Vitest unit tests + axe accessibility tests (no DB)
 - `npm run test:integration`: Server Action authz/persistence tests against the Neon `dev` branch (never prod)
 - `npm run format`: Prettier (with the Tailwind class-sorting plugin)
 - Prisma (from M2): `npx prisma migrate dev --name <name>`, `npx prisma generate`, `npx prisma studio`

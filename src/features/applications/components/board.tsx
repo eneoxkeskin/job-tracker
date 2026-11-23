@@ -37,7 +37,9 @@ import type { ApplicationListItem } from "../queries";
 import { type Columns, locateCard, moveCard, resolveStage } from "../ranking";
 import type { MoveInput } from "../schema";
 import { STAGE_LABELS, STAGES, type StageId } from "../stages";
+import { countByStage } from "../stats";
 import { ApplicationCard } from "./application-card";
+import { StageSummary } from "./stage-summary";
 
 type Card = ApplicationListItem;
 type BoardColumns = Columns<Card>;
@@ -199,6 +201,10 @@ export function Board({ columns }: BoardProps) {
 
   return (
     <>
+      {/* Computed from what's on screen, so counts follow drags and optimistic moves. */}
+      <StageSummary
+        summary={countByStage(STAGES.flatMap((stage) => shown[stage]))}
+      />
       {error && (
         <div
           role="alert"

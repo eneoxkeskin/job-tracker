@@ -349,6 +349,39 @@ AUTH_GITHUB_SECRET=""
 - **`prisma migrate dev` needs a shadow database.** Prisma creates a temporary one on the same server, and Neon's owner role normally allows this. If it fails, create a `shadow` branch and set `shadowDatabaseUrl` in the config.
 - **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. **Verified in M2:** Prisma's `env("DIRECT_URL")` helper throws when the variable is missing (`PrismaConfigEnvError`), which would break the Vercel build. `prisma.config.ts` therefore sets `datasource` only when `DIRECT_URL` exists. `generate` works without it, and `migrate` still fails with a clear message.
 
+### Decisions made during M8
+
+- **The stage summary lives inside the client board** and is computed with `countByStage` from what's on screen, so the counts follow drags and optimistic moves. It's a `<dl>`, so every number has a programmatic label.
+- **Sample data is a pure builder** (`sample-data.ts`): fictional companies, `example.com` links, dates relative to today. A unit test also runs every sample row through the app's own zod schema.
+- **`loadSampleData` only fills an empty board**, so it's idempotent and never mixes demo rows into real data. It takes a `SELECT … FOR UPDATE` lock on the user row so concurrent clicks are serialized.
+  - **Honest limit:** the 10-way concurrency integration test passes, but it also passed with the lock removed. The race didn't reproduce locally, so the test is a smoke test, not proof. The lock is justified by reasoning: count-then-insert under READ COMMITTED can double-insert.
+- **Automated accessibility tests** (`components/a11y.test.tsx`): the real components are rendered with `react-dom/server` and scanned by axe-core against WCAG 2.2 A/AA in jsdom.
+  - They cover the board (summary, columns, cards, handles, Move to), the empty board, the form and the delete dialog.
+  - **Mutation-checked:** breaking a label makes the test fail ("select-name").
+- **Contrast** (jsdom can't measure it) was computed from the Tailwind palette:
+
+  | Pair                                     | Ratio       | Minimum |
+  | ---------------------------------------- | ----------- | ------- |
+  | slate-900 / white (text)                 | 17.85       | 4.5     |
+  | slate-700 / white                        | 10.35       | 4.5     |
+  | slate-700 / slate-100 (columns)          | 9.45        | 4.5     |
+  | slate-600 / white (notes)                | 7.58        | 4.5     |
+  | slate-500 / white (placeholder)          | 4.76        | 4.5     |
+  | blue-700 / white (links)                 | 6.70        | 4.5     |
+  | white / red-700 (danger button)          | 6.47        | 4.5     |
+  | red-800 / red-50 (error banner)          | 7.60        | 4.5     |
+  | slate-500 input borders                  | 4.76        | 3       |
+  | blue-600 focus ring on white / slate-100 | 5.17 / 4.72 | 3       |
+
+  Tailwind v4 defines the palette in OKLCH, so these hex-based values are close approximations.
+
+- **Mobile, reviewed at 360 px in the code:**
+  - every touch target is at least 44 px;
+  - the summary uses 2 columns with Total spanning both;
+  - columns are 85% wide with horizontal scroll and snapping;
+  - forms are a single column, and the header hides the user's name.
+  - **Still to do manually:** Lighthouse and a real-device check on the deployed URL.
+
 ### Decisions made during M7
 
 - **Drag starts only from a handle** (a 44×44 button with `touch-none`), not from the whole card. Links and the "Move to" form inside the card keep working, swipes elsewhere scroll on touch devices, and keyboard users get one clear focus target (Space/Enter picks the card up, the arrow keys move it, Space/Enter drops it, Escape cancels).
