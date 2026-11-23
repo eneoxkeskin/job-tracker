@@ -74,6 +74,29 @@ export function planRankUpdates(
   return updates;
 }
 
+/** Stage and 0-based position of a card, or null if it isn't on the board. */
+export function locateCard<T extends { id: string }>(
+  columns: Columns<T>,
+  id: string,
+): { stage: StageId; index: number } | null {
+  for (const stage of STAGES) {
+    const index = columns[stage].findIndex((card) => card.id === id);
+    if (index !== -1) return { stage, index };
+  }
+  return null;
+}
+
+/**
+ * The stage a drag target belongs to: `id` is either a column (its stage) or a card in one.
+ */
+export function resolveStage<T extends { id: string }>(
+  columns: Columns<T>,
+  id: string,
+): StageId | null {
+  if ((STAGES as readonly string[]).includes(id)) return id as StageId;
+  return locateCard(columns, id)?.stage ?? null;
+}
+
 /** Rank for a newly created card so it appears at the top of its column. */
 export function rankForNewCard(minRankInColumn: number | null): number {
   return minRankInColumn === null ? 0 : minRankInColumn - 1;

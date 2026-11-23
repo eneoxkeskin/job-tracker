@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   type Columns,
   groupByStage,
+  locateCard,
   moveCard,
   planRankUpdates,
   rankForNewCard,
   reorder,
+  resolveStage,
 } from "./ranking";
 import type { StageId } from "./stages";
 
@@ -108,6 +110,25 @@ describe("groupByStage", () => {
     expect(columns.OFFER.map((c) => c.id)).toEqual(["o"]);
     expect(columns.INTERVIEW).toEqual([]);
     expect(columns.REJECTED).toEqual([]);
+  });
+});
+
+describe("locateCard / resolveStage", () => {
+  const columns = groupByStage([
+    card("a", "APPLIED", 0),
+    card("b", "APPLIED", 1),
+    card("i", "INTERVIEW", 0),
+  ]);
+
+  it("finds a card's stage and position", () => {
+    expect(locateCard(columns, "b")).toEqual({ stage: "APPLIED", index: 1 });
+    expect(locateCard(columns, "missing")).toBeNull();
+  });
+
+  it("resolves a drop target that is a card or a (possibly empty) column", () => {
+    expect(resolveStage(columns, "i")).toBe("INTERVIEW");
+    expect(resolveStage(columns, "OFFER")).toBe("OFFER");
+    expect(resolveStage(columns, "missing")).toBeNull();
   });
 });
 

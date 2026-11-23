@@ -349,6 +349,16 @@ AUTH_GITHUB_SECRET=""
 - **`prisma migrate dev` needs a shadow database.** Prisma creates a temporary one on the same server, and Neon's owner role normally allows this. If it fails, create a `shadow` branch and set `shadowDatabaseUrl` in the config.
 - **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. **Verified in M2:** Prisma's `env("DIRECT_URL")` helper throws when the variable is missing (`PrismaConfigEnvError`), which would break the Vercel build. `prisma.config.ts` therefore sets `datasource` only when `DIRECT_URL` exists. `generate` works without it, and `migrate` still fails with a clear message.
 
+### Decisions made during M7
+
+- **Drag starts only from a handle** (a 44×44 button with `touch-none`), not from the whole card. Links and the "Move to" form inside the card keep working, swipes elsewhere scroll on touch devices, and keyboard users get one clear focus target (Space/Enter picks the card up, the arrow keys move it, Space/Enter drops it, Escape cancels).
+- **Three layers of state.** The server's `columns`, then `useOptimistic` for moves still in flight, then a drag preview. A failed move needs no manual rollback: when the transition ends React discards the optimistic state and the card snaps back. An error appears in a `role="alert"` banner.
+- **The client sends `{ id, toStage, toIndex }` and the server computes the ranks.** Both sides use the same pure `moveCard`/`reorder`, so the optimistic order matches what gets saved (unit-tested).
+- **Custom screen-reader announcements** (`dnd-announcements.ts`, tested). dnd-kit's defaults read out raw ids. Ours say e.g. "Picked up Acme. Applied, position 1 of 3."
+- **The drag overlay is decorative** (`aria-hidden`) and drop animation is off. `[data-sortable]` transitions are disabled under `prefers-reduced-motion`.
+- **`DndContext id="board-dnd"`** keeps the generated `aria-describedby` ids stable between server and client (no hydration mismatch).
+- **"Move to" stays.** It remains the simplest path on touch devices and for screen-reader users, and it works without JS.
+
 ### Decisions made during M6
 
 - **Authorization integration tests** were pulled forward from "if time permits" (`npm run test:integration`, `actions.integration.test.ts`).

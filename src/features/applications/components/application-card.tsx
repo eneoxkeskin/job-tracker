@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { focusRing } from "@/components/styles";
 
@@ -8,12 +9,17 @@ import { MoveToForm } from "./move-to-form";
 
 type ApplicationCardProps = {
   application: ApplicationListItem;
+  /** Optional drag handle rendered next to the title (provided by the board). */
+  dragHandle?: ReactNode;
 };
 
 const linkStyle = `inline-flex min-h-11 items-center rounded text-sm font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 ${focusRing}`;
 
 /** Presentational card; no hooks, so it can be rendered by server and client components. */
-export function ApplicationCard({ application }: ApplicationCardProps) {
+export function ApplicationCard({
+  application,
+  dragHandle,
+}: ApplicationCardProps) {
   const salary = formatSalaryRange(
     application.salaryMin,
     application.salaryMax,
@@ -22,9 +28,12 @@ export function ApplicationCard({ application }: ApplicationCardProps) {
 
   return (
     <article className="space-y-1 rounded-lg border border-slate-300 bg-white p-3 shadow-sm">
-      <h3 className="font-semibold break-words text-slate-900">
-        {application.company}
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="min-w-0 font-semibold break-words text-slate-900">
+          {application.company}
+        </h3>
+        {dragHandle}
+      </div>
       <p className="break-words text-slate-800">{application.jobTitle}</p>
       <p className="text-sm text-slate-700">
         Applied{" "}
