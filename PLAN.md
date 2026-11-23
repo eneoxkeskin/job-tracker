@@ -349,6 +349,12 @@ AUTH_GITHUB_SECRET=""
 - **`prisma migrate dev` needs a shadow database.** Prisma creates a temporary one on the same server, and Neon's owner role normally allows this. If it fails, create a `shadow` branch and set `shadowDatabaseUrl` in the config.
 - **`prisma generate` on Vercel.** Vercel caches `node_modules`, so `postinstall: prisma generate` is required, or the build uses a stale or missing client. **Verified in M2:** Prisma's `env("DIRECT_URL")` helper throws when the variable is missing (`PrismaConfigEnvError`), which would break the Vercel build. `prisma.config.ts` therefore sets `datasource` only when `DIRECT_URL` exists. `generate` works without it, and `migrate` still fails with a clear message.
 
+### Decisions made during M3
+
+- **The build fails fast without `DATABASE_URL`.** This was verified: `src/lib/db.ts` throws at import, and Next imports route modules while collecting page data. This is intentional, because a misconfigured environment can't produce a deployment that looks healthy but is broken. For CI builds a dummy URL is enough, since the build opens no connection.
+- **`agentRules: false` in next.config.** `next dev` in 16.4 otherwise (re)creates an `AGENTS.md`. Agent instructions live in CLAUDE.md.
+- **`pages: { signIn: "/", error: "/" }`.** Auth errors land on our landing page, which shows a generic message. The `?error=` code is user-controllable, so it isn't echoed back.
+
 ### Decisions made during M2
 
 - **`overrides: { effect: "3.22.5" }`.** `@prisma/config@7.10.1` pins `effect@3.20.0`, which has a high-severity ReDoS advisory (GHSA-7589-6fvf-x4pw). It's only reachable through our own config file, but a clean audit is cheap: we override to the patched version in the same 3.x line. `npm audit fix --force` would downgrade to Prisma 6, which is wrong. Remove the override once Prisma ships with a patched version.
