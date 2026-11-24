@@ -33,12 +33,17 @@ Job Application Tracker: GitHub sign-in, applications on a 4-stage Kanban board
 
 ## Architecture
 
-- `src/app/`: thin routing layer (pages, `loading.tsx`, `error.tsx`, the Auth.js route handler)
+- `src/app/`: thin routing layer (pages, `loading.tsx`, `error.tsx`, the two route handlers)
 - `src/features/applications/`: domain feature
   - `schema.ts` (zod), `ranking.ts`, `stats.ts`, `stages.ts`: pure, client-safe, unit-tested
   - `queries.ts` (server-only reads), `actions.ts` (`"use server"` mutations), `components/`
-- `src/lib/db.ts`: PrismaClient singleton. `src/lib/session.ts`: `requireUserId()`. `src/auth.ts`: Auth.js config
-- Mutations are Server Actions. The only route handler is `/api/auth/[...nextauth]`.
+- `src/features/demo/`: "Try demo" (temporary demo users, rate limits, quotas, cleanup; PLAN.md §8)
+- `src/lib/db.ts`: PrismaClient singleton. `src/lib/session.ts`: `requireUserId()`, `getCurrentUser()`.
+  Auth.js: `src/auth.config.ts` (config), `src/auth.ts` (NextAuth), `src/lib/auth-adapter.ts`
+  (demo guards on the Prisma adapter), `src/lib/auth-cookie.ts` (session cookie naming)
+- Mutations are Server Actions. Route handlers: `/api/auth/[...nextauth]` (Auth.js) and
+  `/api/cron/cleanup-demo` (Vercel Cron, `CRON_SECRET` bearer).
+- Demo users (`User.isDemo`) have a hard 1-hour session, never an OAuth `Account`, and lower quotas.
 - Ordering: integer `rank` per stage. The client sends `{ id, toStage, toIndex }`, and the server
   renumbers the target column in a transaction. The pure `reorder()` is shared with the
   optimistic UI.
@@ -51,11 +56,12 @@ Job Application Tracker: GitHub sign-in, applications on a 4-stage Kanban board
 - Use `updateMany`/`deleteMany` with `{ id, userId }` and check `count`. A record that isn't
   the user's → 404 (`notFound()`), never 403.
 - Every Server Action starts with `requireUserId()`, then `schema.safeParse(input)`. Treat
-  actions as public endpoints.
+  actions as public endpoints. The one exception is `startDemo`: it takes no input, is
+  rate-limited, and can only create a new demo user.
 - Validate all input on the server with zod. URLs must be `http:`/`https:` only.
 - Never return raw Prisma or internal error messages to the client. Log on the server and
   return a generic message.
-- Import `server-only` in `db.ts`, `session.ts` and `queries.ts`.
+- Import `server-only` in `db.ts`, `session.ts`, `queries.ts` and other server-only modules.
 - Secrets live only in `.env` (gitignored). Keep `.env.example` updated with empty values.
   Never ask the user to paste secrets into chat. Never use the `NEXT_PUBLIC_` prefix for secrets.
 

@@ -14,6 +14,7 @@ vi.mock("../actions", () => ({
   moveApplication: vi.fn(),
   moveApplicationFromForm: vi.fn(),
 }));
+vi.mock("@/features/demo/actions", () => ({ startDemo: vi.fn() }));
 // next/link needs the App Router context; a plain anchor renders the same markup.
 vi.mock("next/link", () => ({
   default: ({
@@ -34,8 +35,10 @@ const { Board } = await import("./board");
 const { EmptyBoard } = await import("./empty-board");
 const { ApplicationForm } = await import("./application-form");
 const { DeleteApplication } = await import("./delete-application");
+const { TryDemoButton } =
+  await import("@/features/demo/components/try-demo-button");
 const { groupByStage } = await import("../ranking");
-const { buildSampleApplications } = await import("../sample-data");
+const { buildSampleApplications } = await import("@/features/demo/sample-data");
 
 async function violations(ui: ReactNode) {
   // A <main> landmark, as on the real pages.
@@ -97,6 +100,10 @@ describe("accessibility (axe, WCAG 2.2 A/AA)", () => {
       />
     );
     expect(await violations(html)).toEqual([]);
+  });
+
+  it("try demo button", async () => {
+    expect(await violations(<TryDemoButton />)).toEqual([]);
   });
 
   it("delete confirmation", async () => {

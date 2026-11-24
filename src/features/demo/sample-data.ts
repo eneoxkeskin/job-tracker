@@ -1,6 +1,6 @@
-// Demo applications for "Load sample data", so a reviewer sees a populated board at once.
+// Seed for "Try demo": a realistic board a visitor sees the moment the demo starts.
 // Company names are fictional and links use the reserved example.com domain.
-import type { StageId } from "./stages";
+import type { StageId } from "@/features/applications/stages";
 
 type SampleSeed = {
   company: string;

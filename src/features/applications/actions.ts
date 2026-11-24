@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { applicationQuota } from "@/features/demo/config";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
@@ -33,6 +34,15 @@ const NOT_FOUND = "This application no longer exists.";
 export type MoveResult = { ok: true } | { ok: false; error: string };
 
 class ApplicationNotFoundError extends Error {}
+
+/** Its message is safe to show: it contains only the limit. */
+class QuotaExceededError extends Error {
+  constructor(limit: number, isDemo: boolean) {
+    super(
+      `You've reached the limit of ${limit} applications${isDemo ? " in the demo" : ""}. Delete one to add another.`,
+    );
+  }
+}
 
 /** Rank that puts a card on top of `stage` for this user. */
 async function topRank(
@@ -65,11 +75,29 @@ export async function createApplication(
   const data = toApplicationData(parsed.data);
   try {
     await db.$transaction(async (tx) => {
+      // Lock the user's row so concurrent submits (double click, two tabs) are counted one
+      // after the other and can't overshoot the quota.
+      const [owner] = await tx.$queryRaw<{ isDemo: boolean }[]>`
+        SELECT "isDemo" FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      if (!owner) throw new ApplicationNotFoundError();
+      const quota = applicationQuota(owner.isDemo);
+      if ((await tx.application.count({ where: { userId } })) >= quota) {
+        throw new QuotaExceededError(quota, owner.isDemo);
+      }
+
       // New cards go on top of their column.
       const rank = await topRank(tx, userId, data.stage);
       await tx.application.create({ data: { ...data, userId, rank } });
     });
   } catch (error) {
+    if (error instanceof QuotaExceededError) {
+      return {
+        status: "error",
+        fieldErrors: {},
+        formError: error.message,
+        values,
+      };
+    }
     console.error("createApplication failed", error);
     return { status: "error", fieldErrors: {}, formError: SAVE_FAILED, values };
   }

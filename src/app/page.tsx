@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { SignInButton } from "@/components/auth-buttons";
+import { TryDemoButton } from "@/features/demo/components/try-demo-button";
+import { DEMO_TTL_MS } from "@/features/demo/config";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
@@ -8,7 +10,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     redirect("/board");
   }
 
-  // Auth.js redirects here with ?error=<code> when sign-in fails (pages.error in src/auth.ts).
+  // Auth.js redirects here with ?error=<code> when sign-in fails (pages.error in auth.config.ts).
   // The code is not shown verbatim: it is user-controllable and not meaningful to end users.
   const { error } = await searchParams;
 
@@ -32,9 +34,15 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           Sign-in failed. Please try again.
         </p>
       )}
-      <div>
+      <div className="flex flex-wrap items-center gap-3">
         <SignInButton />
+        <TryDemoButton />
       </div>
+      <p className="text-sm text-slate-700">
+        No account needed for the demo: you get your own private board with
+        sample applications. It&apos;s deleted when you exit, or after{" "}
+        {DEMO_TTL_MS / 60_000} minutes.
+      </p>
     </main>
   );
 }

@@ -1,8 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { SignOutButton } from "@/components/auth-buttons";
+import { SignInButton, SignOutButton } from "@/components/auth-buttons";
+import { DEMO_TTL_MS } from "@/features/demo/config";
 import { getCurrentUser } from "@/lib/session";
+
+const DEMO_MINUTES = DEMO_TTL_MS / 60_000;
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
@@ -18,22 +21,47 @@ export async function SiteHeader() {
         </Link>
         {user && (
           <div className="flex items-center gap-2">
-            {user.image && (
-              <Image
-                src={user.image}
-                alt=""
-                width={32}
-                height={32}
-                className="size-8 rounded-full"
-              />
+            {user.isDemo ? (
+              <span className="rounded-full border border-amber-700 bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-900">
+                Demo
+              </span>
+            ) : (
+              <>
+                {user.image && (
+                  <Image
+                    src={user.image}
+                    alt=""
+                    width={32}
+                    height={32}
+                    className="size-8 rounded-full"
+                  />
+                )}
+                <span className="hidden text-sm text-slate-700 sm:inline">
+                  {user.name ?? user.email ?? "Signed in"}
+                </span>
+              </>
             )}
-            <span className="hidden text-sm text-slate-700 sm:inline">
-              {user.name ?? user.email ?? "Signed in"}
-            </span>
-            <SignOutButton />
+            <SignOutButton label={user.isDemo ? "Exit demo" : "Sign out"} />
           </div>
         )}
       </div>
+      {user?.isDemo && (
+        <section
+          aria-labelledby="demo-banner-title"
+          className="border-t border-amber-200 bg-amber-50"
+        >
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2">
+            <p className="text-sm text-amber-950">
+              <strong id="demo-banner-title" className="font-semibold">
+                You&apos;re using the demo.
+              </strong>{" "}
+              This board is private to you. It&apos;s deleted when you exit, or
+              after {DEMO_MINUTES} minutes.
+            </p>
+            <SignInButton />
+          </div>
+        </section>
+      )}
     </header>
   );
 }

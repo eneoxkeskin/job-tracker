@@ -543,3 +543,47 @@ search, archive), plus CI and end-to-end tests.
 - **Migrations go first.** Each one is applied to production by the owner before the phase is
   pushed.
 - **Flaky end-to-end tests** (cold database in CI): one retry in CI, trace on failure.
+
+### V1 notes (done)
+
+- The CI workflow can't run locally (no Docker); it is validated on the first push.
+- `docs/screenshot.png` is referenced by the README but isn't committed yet (owner's file).
+
+### V2 notes (done)
+
+- **Verified, not assumed.** Both Auth.js behaviors behind the adapter guards were read in the
+  installed `@auth/core@0.41.3` source, and the integration tests run Auth.js' real session
+  handler. A control test shows that a regular session with the same one-hour expiry _is_
+  extended to 30 days, which proves the premise of the guard.
+- **Mutation-checked:** removing the `updateSession` guard, the `linkAccount` guard, or the
+  advisory lock each makes a test fail. (Unlike the old sample-data lock test, the 8-way burst
+  reliably overshoots the limit without the lock.)
+- **Checked over real HTTP** (dev server, no JavaScript): the "Try demo" form returns 303 to
+  `/board` with a one-hour `HttpOnly; SameSite=lax` cookie; the board shows the demo data;
+  after two page loads the session's expiry is unchanged; a forged cookie renders no data;
+  "Exit demo" clears the cookie and deletes the demo's applications and sessions.
+- **`auth.config.ts`** holds the Auth.js config so tests can pass it to Auth.js' `Auth()`
+  handler directly. `auth.ts` only calls `NextAuth(authConfig)`.
+- **The demo quota lives with the demo rules** (`features/demo/config.ts`), and
+  `createApplication` reads `isDemo` from the database under the row lock, not from the
+  session.
+- **Unknown IP:** when no `x-forwarded-for`/`x-real-ip` is present (local development), only the
+  global limit applies. On Vercel the header is always set by the platform.
+- **The sample builder moved** to `features/demo/sample-data.ts`.
+
+#### Security review (V2, manual)
+
+| Area                 | Finding                                                                                                                                                                                                           | Status     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `startDemo` (public) | Takes no input. It can only create a new demo user. Next's Server Action Origin check blocks cross-site posts (login CSRF). It refuses to replace an existing session (no session swapping for a signed-in user). | OK         |
+| Session token        | 32 bytes from `crypto.randomBytes`, base64url. Stored in plain text like Auth.js' own tokens: a database leak would expose live sessions, but demo sessions last at most one hour.                                | Accepted   |
+| Cookie               | Same name and options as Auth.js (`__Secure-` prefix, `Secure` on https, `HttpOnly`, `SameSite=Lax`, `Path=/`), `Expires` = session expiry.                                                                       | OK         |
+| Lifetime             | Session row expiry is never extended for demo users (adapter guard). `getCurrentUser()` independently rejects a demo older than one hour (fails closed on a missing value).                                       | OK, tested |
+| OAuth linking        | `linkAccount` refuses demo users. "Sign in with GitHub" from the demo signs out first.                                                                                                                            | OK, tested |
+| Data isolation       | No query changed its `userId` scoping. Demo → real, real → demo and demo → demo access was tested on read, list, update, move and delete.                                                                         | OK, tested |
+| Cron endpoint        | Bearer `CRON_SECRET`, constant-time comparison of SHA-256 digests, 401 when missing, wrong or not configured (min. 16 characters). Returns only counts. Can only delete expired demo users and expired sessions.  | OK, tested |
+| Abuse / storage      | 100 demos per hour globally, 5 per IP, 30 applications per demo, rows deleted within about 25 hours. Stage moves add no rows (until V3 adds events; see V3).                                                      | OK         |
+| IP spoofing          | `x-forwarded-for` can be forged when self-hosted without a proxy. On Vercel the platform sets it. The global cap bounds the damage either way.                                                                    | Accepted   |
+| Privacy              | Raw IPs are never stored; the HMAC is deleted with the demo user. Demo data is deleted on exit.                                                                                                                   | OK         |
+| Error messages       | Rate-limit and quota messages contain only the limits. Unexpected errors are logged and the client gets a generic message.                                                                                        | OK         |
+| Residual             | Rotating `AUTH_SECRET` changes IP hashes, which resets the per-IP counts for at most an hour. Demo users can call Auth.js endpoints like `/api/auth/session`, which only ever return their own session.           | Accepted   |

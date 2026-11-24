@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { buildSampleApplications } from "./sample-data";
-import { applicationInputSchema } from "./schema";
-import { STAGES } from "./stages";
+import { applicationInputSchema } from "@/features/applications/schema";
+import { STAGES } from "@/features/applications/stages";
 
 const TODAY = new Date("2026-11-24T15:30:00Z");
 const samples = buildSampleApplications(TODAY);
