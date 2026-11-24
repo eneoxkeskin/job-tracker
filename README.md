@@ -29,6 +29,11 @@ board with sample data, no account needed, or sign in with GitHub.
 - **Follow-ups**: an optional follow-up date per application. Cards show "Follow up on …",
   "Follow up today", or an overdue warning with an icon and text (never color alone).
 - **"No response for N days"** on Applied and Interview cards after 14 days without a change.
+- **Search and filter**: by company or job title (case- and accent-insensitive) and by stage.
+  The filter lives in the URL, so it can be shared and works without JavaScript. Drag and drop
+  and "Move to" keep working while filtering, and hidden cards keep their order.
+- **Archive**: move an application off the board and out of the insights without deleting it,
+  and restore it later from the Archive page.
 - **Stage history**: every stage change is recorded and listed on the edit page.
 - **Insights** derived from that history: the Applied → Interview rate and the average time to
   a first response, each with its sample size, and an explanatory empty state until there are
@@ -70,6 +75,7 @@ src/
    ├─ schema.ts                # zod schemas (server-authoritative)
    ├─ ranking.ts               # pure ordering logic shared by server and optimistic UI
    ├─ history.ts               # follow-ups, waiting time, event-based insights (pure)
+   ├─ filter.ts                # search and stage filter (pure)
    ├─ stats.ts, stages.ts, format.ts, dnd-announcements.ts
    ├─ queries.ts               # server-only reads, always scoped to the signed-in user
    ├─ actions.ts               # Server Actions: create / update / delete / move
@@ -144,6 +150,9 @@ throwaway Postgres service container, and a production build.
     - injected ids are ignored;
     - clearing a field stores `NULL`;
     - moves renumber columns correctly;
+    - archive: archived cards leave the board, the column renumbering and the insights,
+      can't be moved, come back on top when restored, and nobody else can archive, restore
+      or list them;
     - stage history: creation and stage changes are recorded, reorders aren't, a failed
       cross-user move records nothing, the history cap, and metrics that only count the
       signed-in user's applications;
@@ -208,7 +217,7 @@ The app is deployed on Vercel from `main`, with functions pinned to `fra1` in
 ## Roadmap
 
 - Editing in a modal through intercepting routes, keeping the full page as a fallback.
-- Search, filtering and sorting by date.
+- Sorting a column by date.
 - Dark mode.
 - Not storing the unused GitHub OAuth access token.
 - A database-level `CHECK (salary_min <= salary_max)` constraint.

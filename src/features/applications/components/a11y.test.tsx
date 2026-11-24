@@ -15,6 +15,10 @@ vi.mock("../actions", () => ({
   moveApplicationFromForm: vi.fn(),
 }));
 vi.mock("@/features/demo/actions", () => ({ startDemo: vi.fn() }));
+// next/form needs the App Router context too; a plain GET form renders the same markup.
+vi.mock("next/form", () => ({
+  default: (props: Record<string, unknown>) => <form {...props} />,
+}));
 // next/link needs the App Router context; a plain anchor renders the same markup.
 vi.mock("next/link", () => ({
   default: ({
@@ -36,6 +40,7 @@ const { EmptyBoard } = await import("./empty-board");
 const { ApplicationForm } = await import("./application-form");
 const { DeleteApplication } = await import("./delete-application");
 const { InsightsPanel } = await import("./insights-panel");
+const { BoardSearch } = await import("./board-search");
 const { StageHistory } = await import("./stage-history");
 const { TryDemoButton } =
   await import("@/features/demo/components/try-demo-button");
@@ -65,6 +70,7 @@ const sampleColumns = groupByStage(
       id: `cmsample${String(i).padStart(17, "0")}`,
       createdAt: new Date("2026-11-24T00:00:00Z"),
       stageEnteredAt: stageEnteredAt(app.stage, history),
+      archivedAt: null,
     }),
   ),
 );
@@ -126,6 +132,18 @@ describe("accessibility (axe, WCAG 2.2 A/AA)", () => {
       />
     );
     expect(await violations(html)).toEqual([]);
+  });
+
+  it("search form and a filtered board (one stage, no matches)", async () => {
+    const filter = { q: "nothing matches", stage: "OFFER" as const };
+    expect(
+      await violations(
+        <>
+          <BoardSearch filter={filter} />
+          <Board columns={sampleColumns} today="2026-11-24" filter={filter} />
+        </>,
+      ),
+    ).toEqual([]);
   });
 
   it("insights empty state", async () => {

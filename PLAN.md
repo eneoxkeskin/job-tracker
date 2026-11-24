@@ -618,4 +618,32 @@ search, archive), plus CI and end-to-end tests.
   the card belongs to them in the same transaction.
 - **The demo seed includes backdated history and follow-ups**, so a visitor immediately sees
   insights (38%, 6.8 days), two stale cards and all three follow-up states.
+- **Cold-start bug found and fixed in V4:** a demo start is often the first query after Neon
+  scaled to zero, and opening the connection inside the transaction exceeded Prisma's default
+  `maxWait` (2 s), so the first demo after idle failed with "Couldn't start the demo". The
+  integration test caught it on a cold run. `createDemo` now waits up to 10 s. Other
+  transactions run after `requireUserId()`, whose session lookup has already opened the
+  connection.
 - `formatAppliedDate` was renamed `formatDate`, since it now also formats follow-ups and history.
+
+### V4 notes (done)
+
+- **Filtering happens on the client**, on the cards the board already loaded. The server page
+  parses `?q=&stage=` with `parseBoardFilter`, which ignores anything unexpected (unknown stage,
+  repeated params, queries over 100 characters) instead of failing.
+- **Drag and drop with a filter:** dnd-kit works on the visible cards only. On drop,
+  `visibleToFullIndex` places the card right before the visible card that now follows it (or
+  right after the one before it), in the full column. Unit tests cover the cases and prove that
+  without a filter it is the identity, so unfiltered behavior is unchanged. "Move to" needed no
+  change: it always moves to the top of the stage.
+- **A stage filter shows only that column**, full width. The summary keeps counting every card
+  on the board, and a `role="status"` line says "Showing X of Y applications".
+- **`next/form`** for the search: a plain GET form without JavaScript, client navigation with
+  it.
+- **Archive rules:** `archivedAt IS NULL` is part of the board query, the insights query, the
+  move (an archived card can't be moved: it isn't on the board) and the column renumbering, so
+  an archived card keeps its rank and never shifts others. Restore puts it on top of its
+  stage. Archiving and restoring are idempotent and scoped by `userId` like every other write.
+  Archived cards still count toward the quota (they are stored data).
+- **Archive UI:** "Archive" / "Restore" on the edit page, an `/archive` page with restore
+  buttons (plus loading and error states), and an "Archive (n)" link on the board.

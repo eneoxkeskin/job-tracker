@@ -82,7 +82,9 @@ export async function createDemo({
 
       return { ok: true, userId: user.id, sessionToken, expires };
     },
-    { timeout: 15_000 },
+    // maxWait: a visitor's demo start is often the first query after Neon scaled to zero, and
+    // opening the connection can take longer than Prisma's 2 s default (seen in testing).
+    { maxWait: 10_000, timeout: 15_000 },
   );
 }
 

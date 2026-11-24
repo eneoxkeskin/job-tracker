@@ -23,6 +23,7 @@ const applicationSelect = {
   stage: true,
   rank: true,
   followUpAt: true,
+  archivedAt: true,
   createdAt: true,
 } as const;
 
@@ -32,11 +33,11 @@ const eventOrder: Prisma.ApplicationEventOrderByWithRelationInput[] = [
   { id: "asc" },
 ];
 
-/** All applications of the signed-in user, in board order. */
+/** The signed-in user's applications on the board (not archived), in board order. */
 export async function listApplications() {
   const userId = await requireUserId();
   const rows = await db.application.findMany({
-    where: { userId },
+    where: { userId, archivedAt: null },
     select: {
       ...applicationSelect,
       // Only the latest event is needed: when the card entered its current stage.
@@ -58,11 +59,14 @@ export type ApplicationListItem = Awaited<
   ReturnType<typeof listApplications>
 >[number];
 
-/** Interview rate and response time of the signed-in user, derived from stage events. */
+/**
+ * Interview rate and response time of the signed-in user, derived from stage events.
+ * Archived applications are left out, like on the board.
+ */
 export async function getInsights() {
   const userId = await requireUserId();
   const rows = await db.application.findMany({
-    where: { userId },
+    where: { userId, archivedAt: null },
     select: {
       appliedAt: true,
       // Scoped by userId too (defense in depth; events always belong to the card's owner).
@@ -72,8 +76,32 @@ export async function getInsights() {
   return computeInsights(rows);
 }
 
+/** The signed-in user's archived applications, most recently archived first. */
+export async function listArchivedApplications() {
+  const userId = await requireUserId();
+  return db.application.findMany({
+    where: { userId, archivedAt: { not: null } },
+    select: {
+      id: true,
+      company: true,
+      jobTitle: true,
+      stage: true,
+      appliedAt: true,
+      archivedAt: true,
+    },
+    orderBy: [{ archivedAt: "desc" }, { id: "asc" }],
+  });
+}
+
+export async function countArchivedApplications() {
+  const userId = await requireUserId();
+  return db.application.count({
+    where: { userId, archivedAt: { not: null } },
+  });
+}
+
 /**
- * One application of the signed-in user, or null if it doesn't exist *or belongs to someone
+ * One application of the signed-in user (archived or not), or null if it doesn't exist *or belongs to someone
  * else*. Callers turn null into a 404, so a foreign id is indistinguishable from a missing one.
  */
 export async function getApplication(id: string) {

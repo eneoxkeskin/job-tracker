@@ -92,6 +92,8 @@ model Application {
   stage          Stage              @default(APPLIED)
   rank           Int // order within the stage column, ascending
   followUpAt     DateTime?          @db.Date // optional reminder date (calendar date, UTC)
+  // Set when archived (PLAN.md §8, V4): hidden from the board, column ranks and insights.
+  archivedAt     DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)

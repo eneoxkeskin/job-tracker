@@ -39,9 +39,21 @@ import {
   movedText,
   pickedUpText,
 } from "../dnd-announcements";
+import {
+  type BoardFilter,
+  filterColumns,
+  isFilterActive,
+  NO_FILTER,
+} from "../filter";
 import { parseDay } from "../history";
 import type { ApplicationListItem } from "../queries";
-import { type Columns, locateCard, moveCard, resolveStage } from "../ranking";
+import {
+  type Columns,
+  locateCard,
+  moveCard,
+  resolveStage,
+  visibleToFullIndex,
+} from "../ranking";
 import type { MoveInput } from "../schema";
 import { STAGE_LABELS, STAGES, type StageId } from "../stages";
 import { countByStage } from "../stats";
@@ -68,6 +80,8 @@ type BoardProps = {
   today: string;
   /** Rendered between the stage summary and the columns (the metrics panel). */
   insights?: ReactNode;
+  /** Search / stage filter from the URL. Only changes what's shown, never what's saved. */
+  filter?: BoardFilter;
 };
 
 /**
@@ -77,9 +91,19 @@ type BoardProps = {
  * - `columns`: server data (re-sent after every successful action via revalidatePath)
  * - `optimisticColumns`: server data + moves still in flight (useOptimistic). If a move fails,
  *   React drops it when the transition ends, so the card snaps back by itself.
+ * - `visibleColumns`: the optimistic columns with the filter applied (what's on screen).
  * - `dragColumns`: the preview while a drag is in progress (cards shift between columns).
+ *
+ * Drag and drop works on the visible cards. On drop, the visible position is mapped to a
+ * position in the full column (visibleToFullIndex), so cards hidden by the filter keep their
+ * order and the server and the optimistic update agree.
  */
-export function Board({ columns, today, insights }: BoardProps) {
+export function Board({
+  columns,
+  today,
+  insights,
+  filter = NO_FILTER,
+}: BoardProps) {
   const todayDate = parseDay(today);
   const [optimisticColumns, applyMove] = useOptimistic(
     columns,
@@ -95,7 +119,10 @@ export function Board({ columns, today, insights }: BoardProps) {
   // screen-reader announcements (which fire before React re-renders).
   const liveColumns = useRef<BoardColumns>(columns);
 
-  const shown = dragColumns ?? optimisticColumns;
+  const visibleColumns = filterColumns(optimisticColumns, filter);
+  const filtering = isFilterActive(filter);
+  const shown = dragColumns ?? visibleColumns;
+  const shownStages = filter.stage ? [filter.stage] : STAGES;
   const activeLocation = activeId ? locateCard(shown, activeId) : null;
   const activeCard = activeLocation
     ? shown[activeLocation.stage][activeLocation.index]
@@ -117,7 +144,7 @@ export function Board({ columns, today, insights }: BoardProps) {
   function handleDragStart({ active }: DragStartEvent) {
     setError(null);
     setActiveId(String(active.id));
-    preview(optimisticColumns);
+    preview(visibleColumns);
   }
 
   // Crossing into another column: move the card there in the preview.
@@ -144,8 +171,8 @@ export function Board({ columns, today, insights }: BoardProps) {
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     const id = String(active.id);
-    const origin = locateCard(optimisticColumns, id);
-    let final = over ? liveColumns.current : optimisticColumns; // dropped outside = cancel
+    const origin = locateCard(visibleColumns, id);
+    let final = over ? liveColumns.current : visibleColumns; // dropped outside = cancel
 
     if (over) {
       const stage = resolveStage(final, id);
@@ -177,7 +204,11 @@ export function Board({ columns, today, insights }: BoardProps) {
     const move: MoveInput = {
       id,
       toStage: target.stage,
-      toIndex: target.index,
+      toIndex: visibleToFullIndex(
+        optimisticColumns[target.stage].map((card) => card.id),
+        final[target.stage].map((card) => card.id),
+        id,
+      ),
     };
     startTransition(async () => {
       applyMove(move);
@@ -191,7 +222,7 @@ export function Board({ columns, today, insights }: BoardProps) {
   }
 
   function handleDragCancel() {
-    liveColumns.current = optimisticColumns;
+    liveColumns.current = visibleColumns;
     setDragColumns(null);
     setActiveId(null);
   }
@@ -215,7 +246,12 @@ export function Board({ columns, today, insights }: BoardProps) {
     <>
       {/* Computed from what's on screen, so counts follow drags and optimistic moves. */}
       <StageSummary
-        summary={countByStage(STAGES.flatMap((stage) => shown[stage]))}
+        // With a filter, the summary still counts every card on the board.
+        summary={countByStage(
+          STAGES.flatMap((stage) =>
+            filtering ? optimisticColumns[stage] : shown[stage],
+          ),
+        )}
       />
       {insights}
       {error && (
@@ -248,13 +284,21 @@ export function Board({ columns, today, insights }: BoardProps) {
         onDragCancel={handleDragCancel}
       >
         {/* Phones: columns scroll horizontally with snapping. Desktop: four-column grid. */}
-        <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
-          {STAGES.map((stage) => (
+        <div
+          className={
+            shownStages.length === 1
+              ? "md:max-w-md"
+              : "-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0"
+          }
+        >
+          {shownStages.map((stage) => (
             <BoardColumn
               key={stage}
               stage={stage}
               cards={shown[stage]}
               today={todayDate}
+              filtering={filtering}
+              fullWidth={shownStages.length === 1}
             />
           ))}
         </div>
@@ -282,10 +326,14 @@ function BoardColumn({
   stage,
   cards,
   today,
+  filtering,
+  fullWidth,
 }: {
   stage: StageId;
   cards: Card[];
   today: Date;
+  filtering: boolean;
+  fullWidth: boolean;
 }) {
   // The column itself is a drop target, so empty columns accept cards too.
   const { setNodeRef, isOver } = useDroppable({ id: stage });
@@ -293,7 +341,7 @@ function BoardColumn({
   return (
     <section
       aria-labelledby={`column-${stage}`}
-      className={`flex w-[85%] shrink-0 snap-start flex-col rounded-lg border border-t-4 border-slate-200 bg-slate-100 sm:w-[45%] md:w-auto ${STAGE_ACCENT[stage]}`}
+      className={`flex shrink-0 snap-start flex-col rounded-lg border border-t-4 border-slate-200 bg-slate-100 ${fullWidth ? "w-full" : "w-[85%] sm:w-[45%] md:w-auto"} ${STAGE_ACCENT[stage]}`}
     >
       <h2
         id={`column-${stage}`}
@@ -315,7 +363,9 @@ function BoardColumn({
         >
           {cards.length === 0 ? (
             <p className="rounded-md border border-dashed border-slate-400 px-3 py-6 text-center text-sm text-slate-700">
-              No applications in this stage.
+              {filtering
+                ? "No matching applications in this stage."
+                : "No applications in this stage."}
             </p>
           ) : (
             <ul className="space-y-2">

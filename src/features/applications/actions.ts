@@ -67,14 +67,14 @@ async function recordStageChange(
   });
 }
 
-/** Rank that puts a card on top of `stage` for this user. */
+/** Rank that puts a card on top of `stage` on this user's board (archived cards don't count). */
 async function topRank(
   tx: Prisma.TransactionClient,
   userId: string,
   stage: MoveInput["toStage"],
 ) {
   const { _min } = await tx.application.aggregate({
-    where: { userId, stage },
+    where: { userId, stage, archivedAt: null },
     _min: { rank: true },
   });
   return rankForNewCard(_min.rank);
@@ -214,6 +214,45 @@ export async function deleteApplication(id: string): Promise<void> {
 }
 
 /**
+ * Archives an application: it leaves the board and the insights but keeps its data and
+ * history. Scoped by userId like every write; a foreign or already archived id changes nothing.
+ */
+export async function archiveApplication(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const parsedId = applicationIdSchema.safeParse(id);
+  if (parsedId.success) {
+    await db.application.updateMany({
+      where: { id: parsedId.data, userId, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+  }
+  revalidatePath("/board");
+  revalidatePath("/archive");
+  redirect("/board");
+}
+
+/** Puts an archived application back on the board, on top of its stage. */
+export async function restoreApplication(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const parsedId = applicationIdSchema.safeParse(id);
+  if (parsedId.success) {
+    await db.$transaction(async (tx) => {
+      const card = await tx.application.findFirst({
+        where: { id: parsedId.data, userId, archivedAt: { not: null } },
+        select: { stage: true },
+      });
+      if (!card) return;
+      await tx.application.updateMany({
+        where: { id: parsedId.data, userId },
+        data: { archivedAt: null, rank: await topRank(tx, userId, card.stage) },
+      });
+    });
+  }
+  revalidatePath("/board");
+  revalidatePath("/archive");
+}
+
+/**
  * Moves a card to `toStage` at position `toIndex` (0 = top) and renumbers that column.
  * See PLAN.md §3. Used by drag and drop (M7) and by the "Move to" form.
  */
@@ -225,15 +264,16 @@ export async function moveApplication(input: unknown): Promise<MoveResult> {
 
   try {
     await db.$transaction(async (tx) => {
+      // Archived cards aren't on the board, so they can't be moved (restore them first).
       const card = await tx.application.findFirst({
-        where: { id, userId },
+        where: { id, userId, archivedAt: null },
         select: { stage: true, rank: true },
       });
       if (!card) throw new ApplicationNotFoundError();
 
       // Same order as compareCards() in ranking.ts.
       const column = await tx.application.findMany({
-        where: { userId, stage: toStage },
+        where: { userId, stage: toStage, archivedAt: null },
         select: { id: true, stage: true, rank: true },
         orderBy: [{ rank: "asc" }, { createdAt: "desc" }, { id: "asc" }],
       });

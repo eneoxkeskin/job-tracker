@@ -97,6 +97,34 @@ export function resolveStage<T extends { id: string }>(
   return locateCard(columns, id)?.stage ?? null;
 }
 
+/**
+ * Maps a drop position in a *filtered* column to the position in the full column, so cards
+ * hidden by the filter keep their order (PLAN.md §8, V4).
+ *
+ * `visibleIds` is the filtered column after the drop (it contains `movedId`); `fullIds` is the
+ * full column before the move (with or without `movedId`). The card is placed right before
+ * the visible card that now follows it, or right after the one that precedes it. Without a
+ * filter the two lists are equal and the result is simply the visible index.
+ */
+export function visibleToFullIndex(
+  fullIds: readonly string[],
+  visibleIds: readonly string[],
+  movedId: string,
+): number {
+  const rest = fullIds.filter((id) => id !== movedId);
+  const position = visibleIds.indexOf(movedId);
+  const next = visibleIds[position + 1];
+  if (position !== -1 && next !== undefined && rest.includes(next)) {
+    return rest.indexOf(next);
+  }
+  const previous = position > 0 ? visibleIds[position - 1] : undefined;
+  if (previous !== undefined && rest.includes(previous)) {
+    return rest.indexOf(previous) + 1;
+  }
+  // No other visible card in the column: top of the column.
+  return 0;
+}
+
 /** Rank for a newly created card so it appears at the top of its column. */
 export function rankForNewCard(minRankInColumn: number | null): number {
   return minRankInColumn === null ? 0 : minRankInColumn - 1;
