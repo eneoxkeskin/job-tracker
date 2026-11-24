@@ -17,6 +17,8 @@ Job Application Tracker: GitHub sign-in, applications on a 4-stage Kanban board
 - `npm run build`: production build (must pass before every commit)
 - `npm run test` / `npm run test:watch`: Vitest unit tests + axe accessibility tests (no DB)
 - `npm run test:integration`: Server Action authz/persistence tests against the Neon `dev` branch (never prod)
+- `npm run test:e2e`: Playwright against `next start` (run `npm run build` first; Chromium lives in
+  `node_modules`: set `PLAYWRIGHT_BROWSERS_PATH=0` for install and runs)
 - `npm run format`: Prettier (with the Tailwind class-sorting plugin)
 - Prisma (from M2): `npx prisma migrate dev --name <name>`, `npx prisma generate`, `npx prisma studio`
 

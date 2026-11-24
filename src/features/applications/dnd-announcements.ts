@@ -43,6 +43,18 @@ export function movedText<T extends Named>(
   if (!overId || !resolveStage(columns, overId)) {
     return `${companyOf(columns, id)} is no longer over a column.`;
   }
+  // Within a column the board only reorders on drop (board.tsx handleDragEnd), so describe
+  // where the card *will* land: the hovered card's position, or the end when over the column
+  // itself. Across columns the preview has already moved the card, so its position is current.
+  const location = locateCard(columns, id);
+  if (location && resolveStage(columns, overId) === location.stage) {
+    const cards = columns[location.stage];
+    const target =
+      overId === location.stage
+        ? cards.length - 1
+        : cards.findIndex((card) => card.id === overId);
+    return `${companyOf(columns, id)} moved. ${STAGE_LABELS[location.stage]}, position ${target + 1} of ${cards.length}.`;
+  }
   return `${companyOf(columns, id)} moved. ${describePosition(columns, id)}.`;
 }
 

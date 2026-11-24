@@ -647,3 +647,49 @@ search, archive), plus CI and end-to-end tests.
   Archived cards still count toward the quota (they are stored data).
 - **Archive UI:** "Archive" / "Restore" on the edit page, an `/archive` page with restore
   buttons (plus loading and error states), and an "Archive (n)" link on the board.
+
+### V5 notes (done)
+
+- **Three end-to-end tests** (`e2e/`, Playwright 1.65.1, Chromium) against `next start`:
+  - the main journey (demo → add → search → edit → move → history → delete → exit);
+  - keyboard drag and drop while filtered;
+  - axe in a real browser on every page, color contrast included, plus a 360 px overflow
+    check.
+    Each test starts its own demo with a fresh fake client IP (`e2e/helpers.ts`), because the
+    per-IP limit would otherwise block repeated runs. On Vercel the platform overwrites
+    `x-forwarded-for`, so this can't be used to bypass the limit there.
+- **`AUTH_TRUST_HOST=true` only for the e2e server.** `next start` runs in production mode, where
+  Auth.js refuses to trust the Host header unless told to. Vercel sets this automatically.
+- **Two v1 bugs found by the new tests and fixed:**
+  - _Phones:_ the board page scrolled sideways (1158 px wide at 360 px). The absolutely
+    positioned `sr-only` texts inside the columns had a containing block outside the
+    horizontal scroll container. The container is now `relative`. Found by the 360 px check.
+  - _Screen readers:_ during a keyboard move within a column, the announcement kept the old
+    position ("position 3 of 3" while over position 2), because the board only reorders on
+    drop. `movedText` now announces where the card will land. Unit-tested and covered by the
+    filtered-drag e2e test, which waits on those announcements.
+- **Stable e2e waits:** wait for hydration (`networkidle`) before using the keyboard sensor,
+  retry the first arrow key until dnd-kit has measured its drop targets (confirmed by the
+  announcement), and wait for the Server Action's POST before reloading. Ran 9 of 9 green
+  with `--repeat-each 3`. CI retries once.
+- **README:** a placeholder for `docs/demo.gif` (commented out until the recording exists) and
+  an "Architecture decisions" section with the v2 decisions.
+
+#### Security review (V5, whole codebase)
+
+| Area             | Check                                                                                                                                                                                                                                               | Status                        |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Server Actions   | `applications/actions.ts` (create, update, delete, move, move form, archive, restore): each starts with `requireUserId()`, validates every input (bound ids included) with zod, and scopes every write by `userId`. `startDemo`: see V2.            | OK                            |
+| Reads            | Every function in `queries.ts` resolves the user itself. Event reads are additionally scoped by `userId`.                                                                                                                                           | OK                            |
+| Route handlers   | Auth.js (its own CSRF protection) and the cron (bearer secret, fails closed). Nothing else is exposed.                                                                                                                                              | OK                            |
+| Cross-user tests | Every feature: applications, demo (both directions and demo ↔ demo), history and insights, archive.                                                                                                                                                 | OK                            |
+| SQL              | Only Prisma's query builder plus two tagged-template raw queries (parameterized) and one constant advisory-lock call. No `*Unsafe` raw queries.                                                                                                     | OK                            |
+| XSS              | No `dangerouslySetInnerHTML`. React escapes all output. Posting URLs are `http(s)` only. Search input is only compared, never rendered as HTML.                                                                                                     | OK                            |
+| Redirects        | All redirect targets are fixed paths. Auth.js only redirects to the same origin by default. The `?error=` code is never echoed.                                                                                                                     | OK                            |
+| Errors           | Clients get generic messages; details go to the server log. Error boundaries show no error text.                                                                                                                                                    | OK                            |
+| Secrets          | Only in env vars. No `NEXT_PUBLIC_` variables. `.env.example` lists `CRON_SECRET`. CI uses a random per-run `AUTH_SECRET` and a throwaway database, with no repository secrets.                                                                     | OK                            |
+| Headers          | Added in V5 and verified on `/`, `/board`, `/api/auth/session` and the cron route: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, HSTS. `X-Powered-By` removed. | OK                            |
+| Cookies          | Auth.js defaults (`HttpOnly`, `SameSite=Lax`, `__Secure-` + `Secure` on https). The demo cookie uses the same settings.                                                                                                                             | OK                            |
+| Dependencies     | `npm audit`: 0 vulnerabilities. Versions pinned exactly, except `@types/*`, `eslint` and `typescript` from the scaffold.                                                                                                                            | OK                            |
+| CI               | `permissions: contents: read`, `push`/`pull_request` (not `pull_request_target`), no secrets. Actions are pinned to major tags, not commit SHAs.                                                                                                    | Accepted (SHA pinning: later) |
+| Still open       | No Content-Security-Policy (needs nonces with Next's inline scripts). The unused GitHub access token is still stored (roadmap). Session tokens are stored in plain text, as Auth.js does.                                                           | Roadmap                       |

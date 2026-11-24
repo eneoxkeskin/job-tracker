@@ -11,6 +11,11 @@ board with sample data, no account needed, or sign in with GitHub.
 
 ![Job Application Tracker board](docs/screenshot.png)
 
+<!-- Demo GIF placeholder: save the recording as docs/demo.gif (Try demo → add → drag → filter,
+     about 10 s, under 5 MB), then remove this comment's markers around the line below.
+![Try demo, add an application, drag it to Interview, filter the board](docs/demo.gif)
+-->
+
 ## Features
 
 - **Try demo without an account.** Each visitor gets their own temporary demo user with a
@@ -82,7 +87,12 @@ src/
    └─ components/              # board (client, dnd-kit), card, form, dialogs, summary
 ```
 
-Key decisions (the full rationale is in [PLAN.md](PLAN.md)):
+## Architecture decisions
+
+The full rationale, with the alternatives that were considered, is in [PLAN.md](PLAN.md)
+(sections 2 and 8).
+
+### MVP
 
 - **Authorization lives in the data layer, not in middleware.**
   - Every query and Server Action resolves the user with `requireUserId()` and filters with
@@ -99,14 +109,33 @@ Key decisions (the full rationale is in [PLAN.md](PLAN.md)):
   - The app uses the pooled URL, which suits serverless.
   - Prisma's CLI uses the direct URL, because migrations need a stable session for advisory
     locks.
-- **The demo signs visitors in without Auth.js providers.** A Server Action creates a demo user
-  and a normal Auth.js `Session` row, then sets Auth.js' own session cookie. Auth.js'
-  Credentials provider only works with JWT sessions, and this app uses database sessions.
-  - Two Auth.js behaviors were found in its source and guarded against: it extends every
-    session to 30 days on read, and it links a new OAuth account to whoever is signed in.
-    Integration tests prove both guards (and fail when the guards are removed).
 - **No UI kit.** The app uses native elements: `<dialog>` for the delete confirmation and
   plain `<form>`s that work without JavaScript.
+
+### v2
+
+- **The demo signs visitors in without an Auth.js provider.** A Server Action creates a demo
+  user and a normal Auth.js `Session` row, then sets Auth.js' own session cookie. Auth.js'
+  Credentials provider only works with JWT sessions, and this app uses database sessions.
+  - Two Auth.js behaviors were found in its source and guarded against in the adapter: it
+    extends every session to 30 days on read, and it links a new OAuth account to whoever is
+    signed in. Integration tests run Auth.js' real session handler and fail when either guard
+    is removed.
+- **Rate limits live in Postgres**, counted from demo user rows under an advisory lock. That
+  means no Redis account or extra secret, and the counts are exact. Exiting the demo wipes its
+  data but keeps the bare row, so exiting can't reset the limit.
+- **Stage history is an event table** (`ApplicationEvent`: from, to, at), written in the same
+  transaction as the change. The insights are derived from it. There is no backfill for older
+  cards, because invented history would make the numbers wrong.
+- **"Today" is decided on the server** (UTC) and passed to the client, so the "no response"
+  and follow-up notes render the same on the server and in the browser.
+- **Search and filter live in the URL** and filter the loaded board on the client. Drag and
+  drop maps the visible drop position to the full column with a pure, tested function, so
+  hidden cards keep their order.
+- **Archive is a timestamp, not a stage**: a rejected card can be archived too. Archived cards
+  are excluded from the board query, column renumbering and insights.
+- **End-to-end tests sign in through the demo**, so they need no OAuth mocking. The same demo is
+  what a reviewer uses.
 
 ## Security
 
@@ -119,6 +148,9 @@ Key decisions (the full rationale is in [PLAN.md](PLAN.md)):
 - Secrets live only in environment variables. `.env` is gitignored and
   [`.env.example`](.env.example) documents the variables.
 - External links use `rel="noopener noreferrer"`.
+- **Security headers** on every response: `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` and HSTS. There's no
+  `X-Powered-By`. A Content-Security-Policy is still on the roadmap.
 - **Demo hardening:**
   - a hard one-hour session (`HttpOnly`, `SameSite=Lax`, `Secure` on https) with a 256-bit
     token;
@@ -133,11 +165,21 @@ Key decisions (the full rationale is in [PLAN.md](PLAN.md)):
 ```powershell
 npm run check              # ESLint + TypeScript + unit and accessibility tests
 npm run test:integration   # Server Actions against a real database (Neon dev branch)
+npm run build              # then:
+npm run test:e2e           # Playwright against the production build
 ```
 
+The first local e2e run needs Chromium. It installs inside `node_modules`, not globally:
+`$env:PLAYWRIGHT_BROWSERS_PATH="0"; npx playwright install chromium` (keep the variable set
+when running the tests).
+
 **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull
-request with Node 24: lint, typecheck, unit tests, migrations plus integration tests against a
-throwaway Postgres service container, and a production build.
+request with Node 24, in two jobs:
+
+- lint, typecheck, unit tests, then migrations plus integration tests against a throwaway
+  Postgres service container, then a production build;
+- a separate end-to-end job (production build, Postgres container, Chromium), which uploads
+  the Playwright report when it fails.
 
 - **Unit tests** cover validation (URL protocols, form coercion, salary rules, dates), ordering
   and index clamping, stats, follow-up and waiting-time rules, insights, formatting, the demo
@@ -160,7 +202,15 @@ throwaway Postgres service container, and a production build.
       extending it, rate limits (including a concurrent burst), quotas, exit, cleanup, the
       cron endpoint, and isolation between demo and real users in both directions.
   - **Checked by mutation:** removing the `userId` filter from the delete query makes the
-    cross-user test fail.
+    cross-user test fail. Removing either Auth.js adapter guard or the demo's advisory lock
+    makes a test fail too.
+- **End-to-end tests** (Playwright, Chromium) run against `next start`:
+  - the main journey: try the demo, then add, search, edit (with an overdue follow-up), move
+    with "Move to", check the stage history, delete with the dialog, and exit;
+  - keyboard drag and drop while a filter hides a card, checking the screen-reader
+    announcements and that the hidden card keeps its place after a reload;
+  - axe on every page in a real browser, including color contrast, plus a check that the page
+    doesn't scroll sideways at 360 px.
 
 ## Running locally (Windows / PowerShell)
 
@@ -195,6 +245,7 @@ Use `sslmode=verify-full` in both connection strings.
 | `npm run build` / `npm start`              | Production build / server                                |
 | `npm run check`                            | Lint, typecheck and unit tests (run before every commit) |
 | `npm run test:integration`                 | DB-backed tests (never point them at production)         |
+| `npm run test:e2e`                         | Playwright end-to-end tests (after `npm run build`)      |
 | `npm run format`                           | Prettier                                                 |
 | `npm run db:migrate` / `npm run db:studio` | Prisma migrate / Prisma Studio                           |
 
@@ -221,4 +272,4 @@ The app is deployed on Vercel from `main`, with functions pinned to `fra1` in
 - Dark mode.
 - Not storing the unused GitHub OAuth access token.
 - A database-level `CHECK (salary_min <= salary_max)` constraint.
-- Playwright end-to-end smoke tests.
+- A Content-Security-Policy with per-request nonces.

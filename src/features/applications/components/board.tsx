@@ -283,12 +283,15 @@ export function Board({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        {/* Phones: columns scroll horizontally with snapping. Desktop: four-column grid. */}
+        {/* Phones: columns scroll horizontally with snapping. Desktop: four-column grid.
+            `relative` makes this the containing block of the absolutely positioned sr-only
+            texts inside the columns; without it they stretched the whole page sideways on
+            phones (found by the 360 px end-to-end check). */}
         <div
           className={
             shownStages.length === 1
               ? "md:max-w-md"
-              : "-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0"
+              : "relative -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0"
           }
         >
           {shownStages.map((stage) => (
