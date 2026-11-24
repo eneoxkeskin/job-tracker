@@ -83,6 +83,20 @@ const appliedAt = z.iso
   )
   .transform((value) => new Date(`${value}T00:00:00.000Z`));
 
+// Optional reminder date. Past dates are allowed (an overdue follow-up is still meaningful);
+// the range only rules out typos like year 0202.
+const followUpAt = z.preprocess(
+  emptyToUndefined,
+  z.iso
+    .date({ error: "Enter a valid date." })
+    .refine(
+      (value) => value >= "2000-01-01" && value <= "2100-12-31",
+      "Enter a date between 2000 and 2100.",
+    )
+    .transform((value) => new Date(`${value}T00:00:00.000Z`))
+    .optional(),
+);
+
 export const applicationInputSchema = z
   .object({
     company: requiredText("Company", LIMITS.company),
@@ -101,6 +115,7 @@ export const applicationInputSchema = z
     stage: z
       .enum(STAGES, { error: "Choose a stage from the list." })
       .default("APPLIED"),
+    followUpAt,
   })
   .superRefine((data, ctx) => {
     if (

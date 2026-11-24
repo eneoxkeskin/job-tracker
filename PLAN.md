@@ -582,8 +582,40 @@ search, archive), plus CI and end-to-end tests.
 | OAuth linking        | `linkAccount` refuses demo users. "Sign in with GitHub" from the demo signs out first.                                                                                                                            | OK, tested |
 | Data isolation       | No query changed its `userId` scoping. Demo → real, real → demo and demo → demo access was tested on read, list, update, move and delete.                                                                         | OK, tested |
 | Cron endpoint        | Bearer `CRON_SECRET`, constant-time comparison of SHA-256 digests, 401 when missing, wrong or not configured (min. 16 characters). Returns only counts. Can only delete expired demo users and expired sessions.  | OK, tested |
-| Abuse / storage      | 100 demos per hour globally, 5 per IP, 30 applications per demo, rows deleted within about 25 hours. Stage moves add no rows (until V3 adds events; see V3).                                                      | OK         |
+| Abuse / storage      | 100 demos per hour globally, 5 per IP, 30 applications per demo, rows deleted within about 25 hours. Stage history is capped too (V3: 300 events per demo).                                                       | OK         |
 | IP spoofing          | `x-forwarded-for` can be forged when self-hosted without a proxy. On Vercel the platform sets it. The global cap bounds the damage either way.                                                                    | Accepted   |
 | Privacy              | Raw IPs are never stored; the HMAC is deleted with the demo user. Demo data is deleted on exit.                                                                                                                   | OK         |
 | Error messages       | Rate-limit and quota messages contain only the limits. Unexpected errors are logged and the client gets a generic message.                                                                                        | OK         |
 | Residual             | Rotating `AUTH_SECRET` changes IP hashes, which resets the per-IP counts for at most an hour. Demo users can call Auth.js endpoints like `/api/auth/session`, which only ever return their own session.           | Accepted   |
+
+### V3 notes (done)
+
+- **Existing cards have no history.** No backfill (see decisions). They show no "entered stage"
+  date (Interview cards fall back to the applied date for "no response"), their edit page says
+  that history starts with this release, and the insights ignore them. Only applications
+  created in Applied from now on count.
+- **Metric definitions** (`history.ts`, unit-tested):
+  - _Applied → Interview:_ of the applications created in Applied, the share that later reached
+    Interview or Offer. Going straight to Offer counts, because an offer implies the interview
+    process happened.
+  - _Average time to first response:_ days from the applied date to the first stage change
+    out of Applied (Interview, Offer or Rejected; a rejection is a response). Negative values,
+    from an applied date entered after the fact, are clamped to 0.
+  - Each needs at least 3 data points (`MIN_SAMPLE`), otherwise the panel explains what's
+    missing instead of showing a misleading percentage.
+- **"No response for N days"**: Applied counts from the applied date; Interview from when the
+  card entered Interview (its latest event), falling back to the applied date. Threshold 14 days.
+- **"Today" is decided once on the server** (UTC) and passed to the board as a string, so the
+  server render and the hydrated client always agree, even around midnight.
+- **The overdue warning doesn't rely on color:** its text says "Follow-up overdue by N days",
+  with a warning icon and a thicker left border as extra cues. Contrast: red-800 on red-50
+  (7.6:1), amber-900 on amber-50 (about 9:1).
+- **History cap:** 300 events per demo user, 20,000 per GitHub user. Past it, stage changes
+  still work but aren't recorded, so a script moving cards back and forth can't grow the
+  table. Creation events need no cap: they're bounded by the application quota.
+- **`ApplicationEvent.userId` is denormalized** so every event query can be scoped by owner
+  like everything else. It is always the acting user, and the action has already proven that
+  the card belongs to them in the same transaction.
+- **The demo seed includes backdated history and follow-ups**, so a visitor immediately sees
+  insights (38%, 6.8 days), two stale cards and all three follow-up states.
+- `formatAppliedDate` was renamed `formatDate`, since it now also formats follow-ups and history.

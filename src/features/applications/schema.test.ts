@@ -220,3 +220,30 @@ describe("moveInputSchema", () => {
     expect(moveInputSchema.safeParse(input).success).toBe(false);
   });
 });
+
+describe("followUpAt", () => {
+  it("is optional: empty means no follow-up", () => {
+    const result = applicationInputSchema.parse(formInput({ followUpAt: "" }));
+    expect(result.followUpAt).toBeUndefined();
+  });
+
+  it("accepts past and future calendar dates, stored at UTC midnight", () => {
+    for (const day of ["2026-11-01", "2027-03-15"]) {
+      expect(
+        applicationInputSchema.parse(formInput({ followUpAt: day })).followUpAt,
+      ).toEqual(new Date(`${day}T00:00:00.000Z`));
+    }
+  });
+
+  it("rejects invalid dates and typo years", () => {
+    expect(
+      fieldErrors(formInput({ followUpAt: "2026-02-30" })).followUpAt,
+    ).toBeDefined();
+    expect(
+      fieldErrors(formInput({ followUpAt: "next week" })).followUpAt,
+    ).toBeDefined();
+    expect(
+      fieldErrors(formInput({ followUpAt: "0202-11-01" })).followUpAt,
+    ).toEqual(["Enter a date between 2000 and 2100."]);
+  });
+});

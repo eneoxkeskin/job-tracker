@@ -6,7 +6,7 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-export function formatAppliedDate(date: Date): string {
+export function formatDate(date: Date): string {
   return dateFormat.format(date);
 }
 

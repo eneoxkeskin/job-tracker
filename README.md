@@ -26,6 +26,13 @@ board with sample data, no account needed, or sign in with GitHub.
 - **Optimistic updates.** Moves show instantly. If the server rejects a move, the card snaps
   back and an error message appears.
 - **Stage summary**: total and per-stage counts that update live while you drag.
+- **Follow-ups**: an optional follow-up date per application. Cards show "Follow up on …",
+  "Follow up today", or an overdue warning with an icon and text (never color alone).
+- **"No response for N days"** on Applied and Interview cards after 14 days without a change.
+- **Stage history**: every stage change is recorded and listed on the edit page.
+- **Insights** derived from that history: the Applied → Interview rate and the average time to
+  a first response, each with its sample size, and an explanatory empty state until there are
+  at least 3 data points.
 - **Every state is handled**: empty board, empty columns, loading skeleton, error boundaries
   with retry, inline form errors that keep what you typed, and pending buttons.
 - **Accessible and responsive**: labelled controls, visible focus, WCAG AA contrast, screen
@@ -62,6 +69,7 @@ src/
 └─ features/applications/
    ├─ schema.ts                # zod schemas (server-authoritative)
    ├─ ranking.ts               # pure ordering logic shared by server and optimistic UI
+   ├─ history.ts               # follow-ups, waiting time, event-based insights (pure)
    ├─ stats.ts, stages.ts, format.ts, dnd-announcements.ts
    ├─ queries.ts               # server-only reads, always scoped to the signed-in user
    ├─ actions.ts               # Server Actions: create / update / delete / move
@@ -126,7 +134,8 @@ request with Node 24: lint, typecheck, unit tests, migrations plus integration t
 throwaway Postgres service container, and a production build.
 
 - **Unit tests** cover validation (URL protocols, form coercion, salary rules, dates), ordering
-  and index clamping, stats, formatting, and the screen-reader texts.
+  and index clamping, stats, follow-up and waiting-time rules, insights, formatting, the demo
+  rules and seed, and the screen-reader texts.
 - **Accessibility tests** render the real components and scan them with axe-core (WCAG 2.2
   A/AA). Color contrast is checked separately against the palette (see PLAN.md).
 - **Integration tests** run against a real database.
@@ -135,6 +144,9 @@ throwaway Postgres service container, and a production build.
     - injected ids are ignored;
     - clearing a field stores `NULL`;
     - moves renumber columns correctly;
+    - stage history: creation and stage changes are recorded, reorders aren't, a failed
+      cross-user move records nothing, the history cap, and metrics that only count the
+      signed-in user's applications;
     - the demo: sign-in cookie, Auth.js accepting the session on http and https without
       extending it, rate limits (including a concurrent burst), quotas, exit, cleanup, the
       cron endpoint, and isolation between demo and real users in both directions.

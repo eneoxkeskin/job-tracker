@@ -15,6 +15,12 @@ import {
 import { CURRENCIES, LIMITS } from "../schema";
 import { STAGE_LABELS, STAGES } from "../stages";
 
+// Help text, linked to its input with aria-describedby.
+const HINTS: Partial<Record<ApplicationField, string>> = {
+  followUpAt:
+    "Optional. The card shows a reminder, and a warning once the date has passed.",
+};
+
 type ApplicationFormProps = {
   action: (
     state: ApplicationFormState,
@@ -48,13 +54,20 @@ export function ApplicationForm({
     target?.focus();
   }, [state]);
 
-  const field = (name: ApplicationField) => ({
-    id: name,
-    name,
-    defaultValue: values[name],
-    "aria-invalid": errors[name] ? true : undefined,
-    "aria-describedby": errors[name] ? `${name}-error` : undefined,
-  });
+  const field = (name: ApplicationField) => {
+    const describedBy = [
+      HINTS[name] ? `${name}-hint` : null,
+      errors[name] ? `${name}-error` : null,
+    ].filter(Boolean);
+    return {
+      id: name,
+      name,
+      defaultValue: values[name],
+      "aria-invalid": errors[name] ? true : undefined,
+      "aria-describedby":
+        describedBy.length > 0 ? describedBy.join(" ") : undefined,
+    };
+  };
 
   return (
     // noValidate: show our own consistent, accessible messages instead of browser bubbles.
@@ -126,6 +139,14 @@ export function ApplicationForm({
             required
             className={inputBase}
           />
+        </Field>
+
+        <Field
+          label="Follow up on"
+          name="followUpAt"
+          errors={errors.followUpAt}
+        >
+          <input {...field("followUpAt")} type="date" className={inputBase} />
         </Field>
 
         <div className="sm:col-span-2">
@@ -228,6 +249,11 @@ function Field({
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </label>
+      {HINTS[name] && (
+        <p id={`${name}-hint`} className="text-sm text-slate-700">
+          {HINTS[name]}
+        </p>
+      )}
       {children}
       {errors && errors.length > 0 && (
         <p id={`${name}-error`} className="text-sm text-red-700">

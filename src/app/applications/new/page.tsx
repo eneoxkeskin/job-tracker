@@ -30,6 +30,7 @@ export default async function NewApplicationPage() {
           salaryMax: "",
           salaryCurrency: "",
           stage: "APPLIED",
+          followUpAt: "",
         }}
         submitLabel="Save application"
         pendingLabel="Saving…"

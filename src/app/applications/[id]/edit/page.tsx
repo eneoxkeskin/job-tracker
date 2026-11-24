@@ -7,6 +7,7 @@ import {
 } from "@/features/applications/actions";
 import { ApplicationForm } from "@/features/applications/components/application-form";
 import { DeleteApplication } from "@/features/applications/components/delete-application";
+import { StageHistory } from "@/features/applications/components/stage-history";
 import { toDateInputValue } from "@/features/applications/format";
 import { getApplication } from "@/features/applications/queries";
 
@@ -39,11 +40,16 @@ export default async function EditApplicationPage({
           salaryMax: application.salaryMax?.toString() ?? "",
           salaryCurrency: application.salaryCurrency ?? "",
           stage: application.stage,
+          followUpAt: application.followUpAt
+            ? toDateInputValue(application.followUpAt)
+            : "",
         }}
         submitLabel="Save changes"
         pendingLabel="Saving…"
         cancelHref="/board"
       />
+
+      <StageHistory events={application.events} />
 
       <section
         aria-labelledby="danger-zone"

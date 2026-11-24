@@ -60,12 +60,18 @@ export async function createDemo({
         },
         select: { id: true },
       });
-      await tx.application.createMany({
-        data: buildSampleApplications(now).map((row) => ({
-          ...row,
-          userId: user.id,
-        })),
-      });
+      for (const { history, ...row } of buildSampleApplications(now)) {
+        await tx.application.create({
+          data: {
+            ...row,
+            userId: user.id,
+            events: {
+              create: history.map((event) => ({ ...event, userId: user.id })),
+            },
+          },
+          select: { id: true },
+        });
+      }
 
       // 256 random bits, like any session token (Auth.js' own default is a UUID v4).
       const sessionToken = randomBytes(32).toString("base64url");

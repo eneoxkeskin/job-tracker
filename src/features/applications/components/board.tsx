@@ -21,7 +21,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import {
+  type ReactNode,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 import { focusRing } from "@/components/styles";
 
@@ -33,6 +39,7 @@ import {
   movedText,
   pickedUpText,
 } from "../dnd-announcements";
+import { parseDay } from "../history";
 import type { ApplicationListItem } from "../queries";
 import { type Columns, locateCard, moveCard, resolveStage } from "../ranking";
 import type { MoveInput } from "../schema";
@@ -57,6 +64,10 @@ const MOVE_FAILED =
 
 type BoardProps = {
   columns: BoardColumns;
+  /** Today as "YYYY-MM-DD" (UTC), from the server, so server and client render the same. */
+  today: string;
+  /** Rendered between the stage summary and the columns (the metrics panel). */
+  insights?: ReactNode;
 };
 
 /**
@@ -68,7 +79,8 @@ type BoardProps = {
  *   React drops it when the transition ends, so the card snaps back by itself.
  * - `dragColumns`: the preview while a drag is in progress (cards shift between columns).
  */
-export function Board({ columns }: BoardProps) {
+export function Board({ columns, today, insights }: BoardProps) {
+  const todayDate = parseDay(today);
   const [optimisticColumns, applyMove] = useOptimistic(
     columns,
     (state, move: MoveInput) =>
@@ -205,6 +217,7 @@ export function Board({ columns }: BoardProps) {
       <StageSummary
         summary={countByStage(STAGES.flatMap((stage) => shown[stage]))}
       />
+      {insights}
       {error && (
         <div
           role="alert"
@@ -237,7 +250,12 @@ export function Board({ columns }: BoardProps) {
         {/* Phones: columns scroll horizontally with snapping. Desktop: four-column grid. */}
         <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
           {STAGES.map((stage) => (
-            <BoardColumn key={stage} stage={stage} cards={shown[stage]} />
+            <BoardColumn
+              key={stage}
+              stage={stage}
+              cards={shown[stage]}
+              today={todayDate}
+            />
           ))}
         </div>
         {/* What follows the pointer. Decorative: the original card keeps its place in the
@@ -260,7 +278,15 @@ export function Board({ columns }: BoardProps) {
   );
 }
 
-function BoardColumn({ stage, cards }: { stage: StageId; cards: Card[] }) {
+function BoardColumn({
+  stage,
+  cards,
+  today,
+}: {
+  stage: StageId;
+  cards: Card[];
+  today: Date;
+}) {
   // The column itself is a drop target, so empty columns accept cards too.
   const { setNodeRef, isOver } = useDroppable({ id: stage });
 
@@ -294,7 +320,7 @@ function BoardColumn({ stage, cards }: { stage: StageId; cards: Card[] }) {
           ) : (
             <ul className="space-y-2">
               {cards.map((card) => (
-                <SortableCard key={card.id} application={card} />
+                <SortableCard key={card.id} application={card} today={today} />
               ))}
             </ul>
           )}
@@ -304,7 +330,13 @@ function BoardColumn({ stage, cards }: { stage: StageId; cards: Card[] }) {
   );
 }
 
-function SortableCard({ application }: { application: Card }) {
+function SortableCard({
+  application,
+  today,
+}: {
+  application: Card;
+  today: Date;
+}) {
   const {
     attributes,
     listeners,
@@ -324,6 +356,7 @@ function SortableCard({ application }: { application: Card }) {
     >
       <ApplicationCard
         application={application}
+        today={today}
         dragHandle={
           // Drag starts only from this handle, so links, the "Move to" form and page
           // scrolling on touch devices keep working everywhere else on the card.

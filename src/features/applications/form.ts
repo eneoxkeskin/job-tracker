@@ -12,6 +12,7 @@ export const APPLICATION_FIELDS = [
   "salaryMax",
   "salaryCurrency",
   "stage",
+  "followUpAt",
 ] as const;
 
 export type ApplicationField = (typeof APPLICATION_FIELDS)[number];
@@ -59,5 +60,6 @@ export function toApplicationData(input: ApplicationInput) {
     salaryMax: input.salaryMax ?? null,
     salaryCurrency: input.salaryCurrency ?? null,
     stage: input.stage,
+    followUpAt: input.followUpAt ?? null,
   };
 }

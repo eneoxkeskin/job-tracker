@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { applicationQuota } from "@/features/demo/config";
+import { applicationQuota, stageEventQuota } from "@/features/demo/config";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
@@ -42,6 +42,29 @@ class QuotaExceededError extends Error {
       `You've reached the limit of ${limit} applications${isDemo ? " in the demo" : ""}. Delete one to add another.`,
     );
   }
+}
+
+/**
+ * Records a stage change in the history (PLAN.md §8, V3), inside the caller's transaction.
+ * Past the account's history limit the change still happens but isn't recorded.
+ */
+async function recordStageChange(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  applicationId: string,
+  fromStage: MoveInput["toStage"],
+  toStage: MoveInput["toStage"],
+) {
+  const owner = await tx.user.findUnique({
+    where: { id: userId },
+    select: { isDemo: true },
+  });
+  if (!owner) return;
+  const recorded = await tx.applicationEvent.count({ where: { userId } });
+  if (recorded >= stageEventQuota(owner.isDemo)) return;
+  await tx.applicationEvent.create({
+    data: { applicationId, userId, fromStage, toStage },
+  });
 }
 
 /** Rank that puts a card on top of `stage` for this user. */
@@ -87,7 +110,19 @@ export async function createApplication(
 
       // New cards go on top of their column.
       const rank = await topRank(tx, userId, data.stage);
-      await tx.application.create({ data: { ...data, userId, rank } });
+      const created = await tx.application.create({
+        data: { ...data, userId, rank },
+        select: { id: true },
+      });
+      // Creation events are bounded by the application quota, so no history check here.
+      await tx.applicationEvent.create({
+        data: {
+          applicationId: created.id,
+          userId,
+          fromStage: null,
+          toStage: data.stage,
+        },
+      });
     });
   } catch (error) {
     if (error instanceof QuotaExceededError) {
@@ -144,6 +179,15 @@ export async function updateApplication(
         where: { id: parsedId.data, userId },
         data: { ...data, ...(rank === undefined ? {} : { rank }) },
       });
+      if (existing.stage !== data.stage) {
+        await recordStageChange(
+          tx,
+          userId,
+          parsedId.data,
+          existing.stage,
+          data.stage,
+        );
+      }
     });
   } catch (error) {
     if (error instanceof ApplicationNotFoundError) {
@@ -208,6 +252,9 @@ export async function moveApplication(input: unknown): Promise<MoveResult> {
           where: { id: update.id, userId },
           data: { stage: update.stage, rank: update.rank },
         });
+      }
+      if (card.stage !== toStage) {
+        await recordStageChange(tx, userId, id, card.stage, toStage);
       }
     });
   } catch (error) {

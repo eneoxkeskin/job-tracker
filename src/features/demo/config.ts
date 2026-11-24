@@ -18,6 +18,19 @@ export const APPLICATION_QUOTA = {
   regular: 1000,
 } as const;
 
+/**
+ * Maximum number of stage-history events one account keeps. Past it, stage changes still work
+ * but are no longer recorded, so a script moving cards back and forth can't grow the table.
+ */
+export const STAGE_EVENT_QUOTA = {
+  demo: 300,
+  regular: 20_000,
+} as const;
+
+export function stageEventQuota(isDemo: boolean): number {
+  return isDemo ? STAGE_EVENT_QUOTA.demo : STAGE_EVENT_QUOTA.regular;
+}
+
 export function applicationQuota(isDemo: boolean): number {
   return isDemo ? APPLICATION_QUOTA.demo : APPLICATION_QUOTA.regular;
 }

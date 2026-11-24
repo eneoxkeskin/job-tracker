@@ -43,6 +43,7 @@ describe("toApplicationData", () => {
       salaryMax: null,
       salaryCurrency: null,
       stage: "OFFER",
+      followUpAt: null,
     });
   });
 });

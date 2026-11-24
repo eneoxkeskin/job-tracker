@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  formatAppliedDate,
-  formatSalaryRange,
-  toDateInputValue,
-} from "./format";
+import { formatDate, formatSalaryRange, toDateInputValue } from "./format";
 
-describe("formatAppliedDate", () => {
+describe("formatDate", () => {
   it("formats the stored UTC calendar date without shifting the day", () => {
-    expect(formatAppliedDate(new Date("2026-11-20T00:00:00.000Z"))).toBe(
+    expect(formatDate(new Date("2026-11-20T00:00:00.000Z"))).toBe(
       "Nov 20, 2026",
     );
   });

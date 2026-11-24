@@ -35,9 +35,12 @@ const { Board } = await import("./board");
 const { EmptyBoard } = await import("./empty-board");
 const { ApplicationForm } = await import("./application-form");
 const { DeleteApplication } = await import("./delete-application");
+const { InsightsPanel } = await import("./insights-panel");
+const { StageHistory } = await import("./stage-history");
 const { TryDemoButton } =
   await import("@/features/demo/components/try-demo-button");
 const { groupByStage } = await import("../ranking");
+const { stageEnteredAt } = await import("../history");
 const { buildSampleApplications } = await import("@/features/demo/sample-data");
 
 async function violations(ui: ReactNode) {
@@ -56,23 +59,45 @@ async function violations(ui: ReactNode) {
 }
 
 const sampleColumns = groupByStage(
-  buildSampleApplications(new Date("2026-11-24T00:00:00Z")).map((app, i) => ({
-    ...app,
-    id: `cmsample${String(i).padStart(17, "0")}`,
-    createdAt: new Date("2026-11-24T00:00:00Z"),
-  })),
+  buildSampleApplications(new Date("2026-11-24T00:00:00Z")).map(
+    ({ history, ...app }, i) => ({
+      ...app,
+      id: `cmsample${String(i).padStart(17, "0")}`,
+      createdAt: new Date("2026-11-24T00:00:00Z"),
+      stageEnteredAt: stageEnteredAt(app.stage, history),
+    }),
+  ),
 );
 
 describe("accessibility (axe, WCAG 2.2 A/AA)", () => {
   it("board with summary, columns, cards, drag handles and Move to forms", async () => {
-    expect(await violations(<Board columns={sampleColumns} />)).toEqual([]);
+    const insights = (
+      <InsightsPanel
+        insights={{
+          tracked: 8,
+          interviewRate: { reached: 3, of: 8, percent: 38 },
+          averageDaysToResponse: { days: 6.8, responses: 5 },
+        }}
+      />
+    );
+    expect(
+      await violations(
+        <Board
+          columns={sampleColumns}
+          today="2026-11-24"
+          insights={insights}
+        />,
+      ),
+    ).toEqual([]);
   });
 
   it("board with empty columns", async () => {
     const columns = groupByStage(
       [sampleColumns.APPLIED[0]].filter((card) => card !== undefined),
     );
-    expect(await violations(<Board columns={columns} />)).toEqual([]);
+    expect(
+      await violations(<Board columns={columns} today="2026-11-24" />),
+    ).toEqual([]);
   });
 
   it("empty board", async () => {
@@ -93,6 +118,7 @@ describe("accessibility (axe, WCAG 2.2 A/AA)", () => {
           salaryMax: "",
           salaryCurrency: "",
           stage: "APPLIED",
+          followUpAt: "",
         }}
         submitLabel="Save application"
         pendingLabel="Saving…"
@@ -100,6 +126,44 @@ describe("accessibility (axe, WCAG 2.2 A/AA)", () => {
       />
     );
     expect(await violations(html)).toEqual([]);
+  });
+
+  it("insights empty state", async () => {
+    expect(
+      await violations(
+        <InsightsPanel
+          insights={{
+            tracked: 1,
+            interviewRate: null,
+            averageDaysToResponse: null,
+          }}
+        />,
+      ),
+    ).toEqual([]);
+  });
+
+  it("stage history, with and without events", async () => {
+    expect(
+      await violations(
+        <StageHistory
+          events={[
+            {
+              id: "e1",
+              fromStage: null,
+              toStage: "APPLIED",
+              at: new Date("2026-11-01T10:00:00Z"),
+            },
+            {
+              id: "e2",
+              fromStage: "APPLIED",
+              toStage: "INTERVIEW",
+              at: new Date("2026-11-05T10:00:00Z"),
+            },
+          ]}
+        />,
+      ),
+    ).toEqual([]);
+    expect(await violations(<StageHistory events={[]} />)).toEqual([]);
   });
 
   it("try demo button", async () => {
