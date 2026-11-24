@@ -13,7 +13,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../actions", () => ({
   moveApplication: vi.fn(),
   moveApplicationFromForm: vi.fn(),
-  loadSampleData: vi.fn(),
 }));
 // next/link needs the App Router context; a plain anchor renders the same markup.
 vi.mock("next/link", () => ({
@@ -73,7 +72,7 @@ describe("accessibility (axe, WCAG 2.2 A/AA)", () => {
     expect(await violations(<Board columns={columns} />)).toEqual([]);
   });
 
-  it("empty board with sample data button", async () => {
+  it("empty board", async () => {
     expect(await violations(<EmptyBoard />)).toEqual([]);
   });
 

@@ -1,7 +1,8 @@
 // Authorization and persistence tests for the Server Actions against a real database.
 // Only the framework edges are mocked: the session (which user is "signed in"), and Next's
 // redirect / revalidatePath. Everything else — zod, Prisma, SQL — runs for real.
-// Run with `npm run test:integration` (uses DATABASE_URL from .env: the Neon dev branch).
+// Run with `npm run test:integration` (DATABASE_URL: the Neon dev branch from .env locally, a
+// Postgres service container in CI).
 import "dotenv/config";
 
 import {
@@ -244,45 +245,6 @@ describe("create / update / delete", () => {
     expect(
       await db.application.findUnique({ where: { id: app.id } }),
     ).toBeNull();
-  });
-});
-
-describe("loadSampleData", () => {
-  it("fills an empty board once; a second call adds nothing", async () => {
-    await actions.loadSampleData();
-    const first = await db.application.count({ where: { userId: alice } });
-    expect(first).toBe(8);
-    expect(await columnIds(alice, "APPLIED")).toEqual([
-      "Northwind Labs",
-      "Bluefin Analytics",
-      "Copperleaf Health",
-    ]);
-
-    await actions.loadSampleData();
-    expect(await db.application.count({ where: { userId: alice } })).toBe(
-      first,
-    );
-  });
-
-  it("never mixes demo data into a board that already has applications", async () => {
-    await seed(alice, "real one", "APPLIED", 0);
-    await actions.loadSampleData();
-    expect(await columnIds(alice, "APPLIED")).toEqual(["real one"]);
-  });
-
-  // Smoke test only: it passes with the row lock, but the race window is timing-dependent and
-  // did not reproduce locally even without the lock, so it does not *prove* the lock works.
-  // The lock is justified by reasoning (count-then-insert under READ COMMITTED); see PLAN.md.
-  it("concurrent calls (double click, two tabs) still insert only one set", async () => {
-    await Promise.all(
-      Array.from({ length: 10 }, () => actions.loadSampleData()),
-    );
-    expect(await db.application.count({ where: { userId: alice } })).toBe(8);
-  });
-
-  it("only affects the signed-in user", async () => {
-    await actions.loadSampleData();
-    expect(await db.application.count({ where: { userId: bob } })).toBe(0);
   });
 });
 

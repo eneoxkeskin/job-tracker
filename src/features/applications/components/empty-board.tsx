@@ -1,9 +1,6 @@
 import Link from "next/link";
 
-import { SubmitButton } from "@/components/submit-button";
-import { buttonPrimary, buttonSecondary } from "@/components/styles";
-
-import { loadSampleData } from "../actions";
+import { buttonPrimary } from "@/components/styles";
 
 export function EmptyBoard() {
   return (
@@ -25,18 +22,7 @@ export function EmptyBoard() {
         <Link href="/applications/new" className={buttonPrimary}>
           Add your first application
         </Link>
-        <form action={loadSampleData}>
-          <SubmitButton
-            pendingLabel="Loading sample data…"
-            className={buttonSecondary}
-          >
-            Load sample data
-          </SubmitButton>
-        </form>
       </div>
-      <p className="mt-4 text-sm text-slate-700">
-        Sample data adds eight fictional applications you can edit or delete.
-      </p>
     </section>
   );
 }

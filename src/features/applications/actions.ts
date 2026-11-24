@@ -20,7 +20,6 @@ import {
   toApplicationData,
 } from "./form";
 import { planRankUpdates, rankForNewCard, reorder } from "./ranking";
-import { buildSampleApplications } from "./sample-data";
 import {
   applicationIdSchema,
   applicationInputSchema,
@@ -128,33 +127,6 @@ export async function updateApplication(
 
   revalidatePath("/board");
   redirect("/board");
-}
-
-/**
- * Fills an empty board with demo applications. Does nothing if the user already has any,
- * so it can't create duplicates or mix demo data into a real board.
- */
-export async function loadSampleData(): Promise<void> {
-  const userId = await requireUserId();
-  try {
-    await db.$transaction(async (tx) => {
-      // Lock the user's row: two concurrent clicks (double submit, two tabs) are serialized,
-      // so the second one sees the first one's rows and stops. Without the lock both could
-      // count 0 under READ COMMITTED and insert twice.
-      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
-      if ((await tx.application.count({ where: { userId } })) > 0) return;
-      await tx.application.createMany({
-        data: buildSampleApplications(new Date()).map((row) => ({
-          ...row,
-          userId,
-        })),
-      });
-    });
-  } catch (error) {
-    console.error("loadSampleData failed", error);
-    throw new Error("Couldn't load sample data. Please try again.");
-  }
-  revalidatePath("/board");
 }
 
 export async function deleteApplication(id: string): Promise<void> {

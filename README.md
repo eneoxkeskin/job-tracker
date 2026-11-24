@@ -1,13 +1,14 @@
 # Job Application Tracker
 
+[![CI](https://github.com/eneoxkeskin/job-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/eneoxkeskin/job-tracker/actions/workflows/ci.yml)
+
 Track your job applications on a Kanban board: sign in with GitHub, add applications, and move
 them from **Applied** to **Interview**, **Offer** or **Rejected** with drag and drop, the
 keyboard, or a simple "Move to" menu.
 
-**Live demo:** https://job-tracker-flame-seven.vercel.app. Sign in with any GitHub account and
-click **Load sample data** to see a populated board right away.
+**Live demo:** https://job-tracker-flame-seven.vercel.app. Sign in with any GitHub account.
 
-![Job Application Tracker board with sample data](docs/screenshot.png)
+![Job Application Tracker board](docs/screenshot.png)
 
 ## Features
 
@@ -22,7 +23,6 @@ click **Load sample data** to see a populated board right away.
 - **Optimistic updates.** Moves show instantly. If the server rejects a move, the card snaps
   back and an error message appears.
 - **Stage summary**: total and per-stage counts that update live while you drag.
-- **Sample data**: one click fills an empty board with eight fictional applications.
 - **Every state is handled**: empty board, empty columns, loading skeleton, error boundaries
   with retry, inline form errors that keep what you typed, and pending buttons.
 - **Accessible and responsive**: labelled controls, visible focus, WCAG AA contrast, screen
@@ -56,9 +56,9 @@ src/
 └─ features/applications/
    ├─ schema.ts                # zod schemas (server-authoritative)
    ├─ ranking.ts               # pure ordering logic shared by server and optimistic UI
-   ├─ stats.ts, stages.ts, format.ts, sample-data.ts, dnd-announcements.ts
+   ├─ stats.ts, stages.ts, format.ts, dnd-announcements.ts
    ├─ queries.ts               # server-only reads, always scoped to the signed-in user
-   ├─ actions.ts               # Server Actions: create / update / delete / move / sample data
+   ├─ actions.ts               # Server Actions: create / update / delete / move
    └─ components/              # board (client, dnd-kit), card, form, dialogs, summary
 ```
 
@@ -101,8 +101,12 @@ npm run check              # ESLint + TypeScript + unit and accessibility tests
 npm run test:integration   # Server Actions against a real database (Neon dev branch)
 ```
 
+**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull
+request with Node 24: lint, typecheck, unit tests, migrations plus integration tests against a
+throwaway Postgres service container, and a production build.
+
 - **Unit tests** cover validation (URL protocols, form coercion, salary rules, dates), ordering
-  and index clamping, stats, formatting, the sample data, and the screen-reader texts.
+  and index clamping, stats, formatting, and the screen-reader texts.
 - **Accessibility tests** render the real components and scan them with axe-core (WCAG 2.2
   A/AA). Color contrast is checked separately against the palette (see PLAN.md).
 - **Integration tests** run against a real database.
@@ -110,8 +114,7 @@ npm run test:integration   # Server Actions against a real database (Neon dev br
     - one user can't read, update, move or delete another user's application;
     - injected ids are ignored;
     - clearing a field stores `NULL`;
-    - moves renumber columns correctly;
-    - sample data is idempotent.
+    - moves renumber columns correctly.
   - **Checked by mutation:** removing the `userId` filter from the delete query makes the
     cross-user test fail.
 
@@ -166,8 +169,6 @@ The app is deployed on Vercel from `main`, with functions pinned to `fra1` in
 
 ## Roadmap
 
-- CI with GitHub Actions: lint, typecheck, and unit tests on every push, plus integration
-  tests against a throwaway Neon branch.
 - Editing in a modal through intercepting routes, keeping the full page as a fallback.
 - Search, filtering and sorting by date.
 - Dark mode.
